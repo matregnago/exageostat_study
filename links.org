@@ -1,0 +1,3 @@
+* Links para recursos importantes
+- Repo oficial do ExaGeoStat: https://github.com/ecrc/exageostat
+- Repo do IPDPS do Nesi: https://gitlab.com/lnesi/ipdps22

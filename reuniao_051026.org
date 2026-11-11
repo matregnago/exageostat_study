@@ -1,0 +1,12 @@
+** Exageostat
+- tentar ver se tem uma implem. assícrona na nova versão
+- caso não, tentar portar o patch
+****** Em um primeiro momento, reproduzir a Figura 8 do paper do IPDPS
+- Envolve olhar também para a qtadade de nós de geração
+****** Em um segundo momento, pensar em como adaptar o Método Nesi
+- Para escolher não somente a qtdade de nós de fatoração
+- Mas escolher "no chute" [usando como background o conhecimento GP-UBC] também
+  a qtdade de nós de geração
+****** Em um terceiro momento
+- Tentar "otimizar" não só o tempo, mas o tempo e a energia
+****** Ver o que aconteceu em RL 4 HPC => nos últimos 4 anos
