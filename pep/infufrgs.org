@@ -1,0 +1,118 @@
+# -*- coding: utf-8 -*-
+# -*- mode: org -*-
+
+#+TITLE: Um Exemplo de Dissertação do Instituto de Informática da UFRGS
+
+#+STARTUP: overview indent
+#+LANGUAGE: en
+#+OPTIONS: H:4 creator:nil timestamp:nil skip:nil toc:nil num:t ^:nil ~:~
+#+OPTIONS: author:nil date:nil title:t
+#+TAGS: noexport(n) deprecated(d) ignore(i)
+#+EXPORT_SELECT_TAGS: export
+#+EXPORT_EXCLUDE_TAGS: noexport
+
+#+LATEX_CLASS: infufrgs
+#+LATEX_CLASS_OPTIONS: [ppgc,pep]
+
+#+LATEX_HEADER: \translatedtitle{An Example of a Master's Thesis at INF/UFRGS}
+#+LATEX_HEADER: \author{Tregnago}{Matheus Augusto}
+#+LATEX_HEADER: \advisor[Prof.~Dr.]{Mello Schnorr}{Lucas}
+#+LATEX_HEADER: % \date{novembro}{2026}
+#+LATEX_HEADER: \keyword{Ciência da Computação}
+#+LATEX_HEADER: \keyword{Org-mode}
+#+LATEX_HEADER: \keyword{LaTeX}
+#+LATEX_HEADER: \translatedkeyword{Computer Science}
+#+LATEX_HEADER: \translatedkeyword{Org-mode}
+#+LATEX_HEADER: \translatedkeyword{LaTeX}
+
+
+* *O Documento*                                                     :ignore:
+** Elementos pré-textuais                                           :ignore:
+
+#+begin_agradecimentos
+Agradeço a todos que contribuíram para a realização deste trabalho.
+#+end_agradecimentos
+
+#+begin_abstract
+Este documento demonstra o uso da classe /infufrgs/ a partir do
+Org-mode.
+#+end_abstract
+
+#+begin_translatedabstract
+This document shows how to use the /infufrgs/ class from Org-mode.
+#+end_translatedabstract
+
+#+LaTeX: \tableofcontents
+#+LaTeX: \listoffigures
+#+LaTeX: \listoftables
+
+** Introdução
+<<cap.introducao>>
+
+Este é um exemplo de como o Org-mode cite:orgmode pode ser usado para
+escrever dissertações e teses seguindo a classe =infufrgs=, que é
+baseada em \LaTeX{} cite:lamport1994latex.
+
+*** Organização do Texto
+
+O Capítulo [[cap.fundamentacao]] apresenta a fundamentação teórica e o
+Capítulo [[cap.conclusao]] as conclusões.
+
+** Fundamentação Teórica
+<<cap.fundamentacao>>
+
+#+CAPTION: Exemplo de tabela com legenda centralizada.
+#+NAME: tab.exemplo
+| Coluna A | Coluna B | Coluna C |
+|----------+----------+----------|
+| Linha 1  |      1.0 |      2.0 |
+| Linha 2  |      3.0 |      4.0 |
+
+** Conclusão
+<<cap.conclusao>>
+
+A Tabela [[tab.exemplo]] mostra que tudo funciona.
+
+** Referências                                                      :ignore:
+
+# See next section to understand how refs.bib file is created.
+bibliographystyle:abntex2-alf
+[[bibliography:refs.bib]]
+
+** Apêndices                                                        :ignore:
+
+#+LaTeX: \appendix
+
+*** Exemplo de Apêndice
+
+Apêndices contêm material elaborado pelo próprio autor.
+
+* Bib file is here                                                 :noexport:
+
+Tangle this file with C-c C-v t
+#+begin_src bibtex :tangle refs.bib
+@article{orgmode,
+  author =	"Eric Schulte and Dan Davison and Thomas Dye and Carsten Dominik",
+  title =	"A Multi-Language Computing Environment for Literate Programming and Reproducible Research",
+  journal =	"J. of Stat. Soft.",
+  volume =	"46",
+  number =	"3",
+  year = 	"2012",
+}
+
+@book{lamport1994latex,
+  author    = {Leslie Lamport},
+  title     = {LaTeX: A Document Preparation System},
+  edition   = {2},
+  year      = {1994},
+  publisher = {Addison-Wesley},
+  address   = {Reading, Massachusetts}
+}
+#+end_src
+* Emacs setup                                                      :noexport:
+# Run Emacs from `nix develop' so TEXINPUTS points to infufrgs.cls.
+# Local Variables:
+# eval: (load-file "setup.el")
+# eval: (add-to-list 'org-export-before-processing-hook (lambda (be) (org-babel-tangle)))
+# eval: (setq-local org-latex-pdf-process (list "latexmk -pdf %f"))
+# End:
