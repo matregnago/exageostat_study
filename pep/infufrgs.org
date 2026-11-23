@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # -*- mode: org -*-
 
-#+TITLE: Um Exemplo de Dissertação do Instituto de Informática da UFRGS
+#+TITLE: Online Per-Phase Resource Selection for Time and Energy in Multi-Phase Task-Based Applications
 
 #+STARTUP: overview indent
 #+LANGUAGE: en
@@ -12,26 +12,28 @@
 #+EXPORT_EXCLUDE_TAGS: noexport
 
 #+LATEX_CLASS: infufrgs
-#+LATEX_CLASS_OPTIONS: [ppgc,pep]
+#+LATEX_CLASS_OPTIONS: [ppgc,pep,english]
 
-#+LATEX_HEADER: \translatedtitle{An Example of a Master's Thesis at INF/UFRGS}
+# Título provisório. Com a opção english, \keyword vai para o Abstract e
+# \translatedtitle/\translatedkeyword vão para o Resumo.
+#+LATEX_HEADER: \translatedtitle{Seleção Online de Recursos por Fase visando Tempo e Energia em Aplicações Multifase Baseadas em Tarefas}
 #+LATEX_HEADER: \author{Tregnago}{Matheus Augusto}
 #+LATEX_HEADER: \advisor[Prof.~Dr.]{Mello Schnorr}{Lucas}
-#+LATEX_HEADER: % \date{novembro}{2026}
-#+LATEX_HEADER: \keyword{Ciência da Computação}
-#+LATEX_HEADER: \keyword{Org-mode}
-#+LATEX_HEADER: \keyword{LaTeX}
-#+LATEX_HEADER: \translatedkeyword{Computer Science}
-#+LATEX_HEADER: \translatedkeyword{Org-mode}
-#+LATEX_HEADER: \translatedkeyword{LaTeX}
+#+LATEX_HEADER: % Sem \date: a classe usa o mês corrente.
+#+LATEX_HEADER: \keyword{High-performance computing}
+#+LATEX_HEADER: \keyword{Task-based programming}
+#+LATEX_HEADER: \keyword{Online learning}
+#+LATEX_HEADER: \keyword{Energy efficiency}
+#+LATEX_HEADER: \keyword{Heterogeneous platforms}
+#+LATEX_HEADER: \translatedkeyword{Computação de alto desempenho}
+#+LATEX_HEADER: \translatedkeyword{Programação baseada em tarefas}
+#+LATEX_HEADER: \translatedkeyword{Aprendizado online}
+#+LATEX_HEADER: \translatedkeyword{Eficiência energética}
+#+LATEX_HEADER: \translatedkeyword{Plataformas heterogêneas}
+#+LATEX_HEADER: \usepackage{booktabs}
 
-
-* *O Documento*                                                     :ignore:
-** Elementos pré-textuais                                           :ignore:
-
-#+begin_agradecimentos
-Agradeço a todos que contribuíram para a realização deste trabalho.
-#+end_agradecimentos
+* *The Document*                                                     :ignore:
+** Front matter                                                     :ignore:
 
 #+begin_abstract
 Este documento demonstra o uso da classe /infufrgs/ a partir do
@@ -43,70 +45,223 @@ This document shows how to use the /infufrgs/ class from Org-mode.
 #+end_translatedabstract
 
 #+LaTeX: \tableofcontents
-#+LaTeX: \listoffigures
-#+LaTeX: \listoftables
 
-** Introdução
-<<cap.introducao>>
+** Introduction
+<<cap.intro>>
 
-Este é um exemplo de como o Org-mode cite:orgmode pode ser usado para
-escrever dissertações e teses seguindo a classe =infufrgs=, que é
-baseada em \LaTeX{} cite:lamport1994latex.
+#+BEGIN_COMMENT
+~1,5 página. Roteiro, um parágrafo por item:
+1. Plataformas HPC heterogêneas e programação baseada em tarefas: DAG,
+   runtime (StarPU) cuida de mapeamento, transferências e balanceamento.
+2. Aplicações em fases com perfis diferentes. ExaGeoStat: cada iteração
+   da MLE gera a matriz de covariância (CPU, embaraçosamente paralela) e
+   fatora por Cholesky (álgebra densa, gosta de GPU, comunica muito).
+   Cada fase prefere um número de nós diferente.
+3. O trabalho do Nesi: execução assíncrona sem barreira entre as fases e
+   distribuição própria por fase (ICPP'21, FGCS'23); aprendizado online do
+   número de nós da fatoração com GP-UCB guiado pelo LP (IPDPS'22).
+   Conferir no paper o ganho máximo antes de citar número.
+4. O que ficou em aberto: só uma dimensão (a geração usa todos os nós);
+   só tempo, sem energia; software legado (ExaGeoStat em C, Chameleon e
+   StarPU antigos), e o ExaGeoStatCPP 2.0 não tem a assincronia.
+5. Este trabalho: objetivo geral em uma frase e as contribuições (O1 a O3).
+6. Organização do texto.
+Fontes: ../ideias.org (Contexto), ../trabalhos_relacionados.org (C3).
+#+END_COMMENT
 
-*** Organização do Texto
+#+LaTeX: \nocite{nesi2022ipdps} % remover quando o texto citar
 
-O Capítulo [[cap.fundamentacao]] apresenta a fundamentação teórica e o
-Capítulo [[cap.conclusao]] as conclusões.
+*** Motivation
+<<sec.motivation>>
 
-** Fundamentação Teórica
-<<cap.fundamentacao>>
+#+BEGIN_COMMENT
+~1 página, com a Fig. 8 quantificada (regerar com rótulos em inglês:
+../../exageostat_guia/fig8_quant.py) e a tabela abaixo.
+Cenário G5K 2L-6M-15S 128 do IPDPS'22, 253 pares (gen, fact).
 
-#+CAPTION: Exemplo de tabela com legenda centralizada.
-#+NAME: tab.exemplo
-| Coluna A | Coluna B | Coluna C |
-|----------+----------+----------|
-| Linha 1  |      1.0 |      2.0 |
-| Linha 2  |      3.0 |      4.0 |
+| Configuration               | gen | fact | Time (s) | Gain over all nodes |
+|-----------------------------+-----+------+----------+---------------------|
+| All nodes in both phases    |  23 |   23 |    41.07 |                     |
+| Best 1D (paper, gen = 23)   |  23 |    9 |    33.93 | 17.4%               |
+| Best rigid (gen = fact)     |   8 |    8 |    33.25 | 19.0%               |
+| Best 2D                     |  10 |    8 |    32.84 | 20.0%               |
 
-** Conclusão
-<<cap.conclusao>>
+Argumento:
+- O 1D do Nesi já captura 17,4 dos 20,0 pontos; a 2ª dimensão soma 3,2%.
+- Com fact = 8, gerar com 8 a 16 nós fica a menos de 0,4 s (1%) do melhor:
+  o vale é plano, e o tempo não distingue essas opções.
+- Se os nós que uma fase não usa forem liberados, gerar com 9 em vez de 16
+  usa 7 nós a menos pelo mesmo tempo: a energia distingue. Por isso a
+  escolha conjunta só faz sentido com energia no objetivo.
+- Limites: um cenário, uma medição por par, provavelmente simulado;
+  Chetemi e Chifflet não existem mais no G5K.
+#+END_COMMENT
 
-A Tabela [[tab.exemplo]] mostra que tudo funciona.
+** Objectives
+<<cap.objectives>>
 
-** Referências                                                      :ignore:
+#+BEGIN_COMMENT
+~0,5 página. Objetivo geral em uma frase:
+"learn online, during a single execution of a multi-phase task-based
+application, how many nodes each phase should use, with energy in the
+objective."
+Objetivos específicos (lista), cada um com critério de sucesso:
+- O1 (viabiliza): execução assíncrona e distribuição própria por fase no
+  ExaGeoStatCPP, sobre StarPU 1.4 e Chameleon 1.4, empacotado em Nix.
+  Sucesso: reproduzir o ganho 1D do IPDPS'22 no G5K Lille.
+- O2: escolha online conjunta de (nós de geração, nós de fatoração).
+  Sucesso: comparar com todos os nós e com o 1D do Nesi em tempo
+  acumulado e regret.
+- O3: energia no objetivo, mínima energia com T <= (1+eps) T*.
+  Sucesso: energia medida nos wattímetros de Lille; ótimo de energia
+  diferente do ótimo de tempo.
+#+END_COMMENT
+
+*** Expected Results
+
+#+BEGIN_COMMENT
+~0,5 página. O que se espera de cada objetivo, incluindo o resultado
+negativo aceitável:
+- O1: pilha atual e reproduzível; se faltar algo no Chameleon/StarPU,
+  documentar e usar o legado para O2/O3.
+- O2: mapa de quando a 2ª dimensão paga a exploração e quando não.
+- O3: quando energia e tempo divergem e quanto se economiza; se a energia
+  segue o tempo, dizer em que contabilidade e por quê.
+#+END_COMMENT
+
+** Related Work
+<<cap.related>>
+
+#+BEGIN_COMMENT
+~3 páginas, a seção que o Lucas pediu forte (reunião #2). Um parágrafo de
+abertura com os eixos, uma subseção por eixo, e a tabela de
+posicionamento no fim. Fonte: ../trabalhos_relacionados.org.
+Regra: o que não foi lido é citado só no nível do resumo.
+BibTeX: do DBLP ou do publisher (DOI → Crossref), nunca de memória.
+#+END_COMMENT
+
+*** Multi-phase applications and per-phase resources
+
+#+BEGIN_COMMENT
+Nesi ICPP'21 (distribuição por fase), IPDPS'22, FGCS'23 (Diodon);
+redistribuição: Chameleon (Desc_Change_Distribution_Async), Cao CLUSTER'20
+(PaRSEC); Beaumont IPDPS'23 (distribuições para qualquer número de nós);
+tarefas moldáveis e maleáveis.
+#+END_COMMENT
+
+*** Online configuration selection with few evaluations
+
+#+BEGIN_COMMENT
+GP-UCB (Srinivas), BOAT (Dalibard), piBO (Hvarfner); Ahmed MLForSys'25
+(BO multiobjetivo sobre número de nós, offline, job inteiro); Álvarez
+FGCS'27 (tuning online dentro do nó, cita o IPDPS'22); Dieguez'24 (busca
+conjunta ou separada).
+#+END_COMMENT
+
+*** Reinforcement learning for HPC
+
+#+BEGIN_COMMENT
+Pochelu'26 (survey); Korndörfer'25 (RL × conhecimento especialista);
+Kaiser'23 (RL só compete com BO quando pré-treinado em simulação);
+Legrand, Trystram, Zrigui IPDPS'19 (crítica ao aprendizado online).
+Mensagem: o problema é um bandit estruturado com poucas dezenas de
+avaliações; RL entra como baseline, não como método principal.
+#+END_COMMENT
+
+*** Energy in task-based runtimes
+
+#+BEGIN_COMMENT
+d'Aviau de Piolant HCW'25 (power capping de GPU em Cholesky sobre
+StarPU); Marcondes, Raddatz, Schnorr SSCAD'26 (energia sobre
+StarPU-SimGrid); tese do Nesi, cap. 7 (Pareto tempo × energia); nós
+ociosos e proporcionalidade energética.
+#+END_COMMENT
+
+*** Positioning
+
+#+BEGIN_COMMENT
+Tabela: trabalho × {online, per phase, multi-node, energy, task-based
+runtime}. Fechar com o parágrafo da lacuna: ninguém combina escolha
+online, por fase e com energia numa aplicação task-based multinó.
+#+END_COMMENT
+
+** Methodology
+<<cap.methodology>>
+
+#+BEGIN_COMMENT
+~2,5 páginas + cronograma. Parágrafo de abertura: o que será feito, em
+que ordem (O1 → O2 → O3), e onde.
+#+END_COMMENT
+
+*** ExaGeoStat on Chameleon and StarPU
+
+#+BEGIN_COMMENT
+No lugar da subseção "StarPU Runtime" do PEP do Nesi, mais curta: modelo
+STF do StarPU, as duas fases do ExaGeoStat, a espera entre elas e a
+distribuição de dados de cada fase.
+#+END_COMMENT
+
+*** Software stack and current state
+
+#+BEGIN_COMMENT
+Tabela do estado do software (de ../plano_pep_17nov.org, seção R4):
+patch do Nesi (legado) × ExaGeoStatCPP 2.0 × Chameleon 1.4. Conferir
+cada célula no código, com arquivo:linha.
+Já feito em 17/11: o ExaGeoStatCPP compila via Nix sobre StarPU 1.4.12 e
+Chameleon 1.4.0, e os exemplos rodam (N = 400). Falta: tirar a espera
+entre as fases, Cholesky assíncrona, geração com MPI e distribuição
+própria, troca de distribuição entre fases.
+#+END_COMMENT
+
+*** Platforms and measurements
+
+#+BEGIN_COMMENT
+Tabela de máquinas, como a do Nesi: G5K Lille (chiclet, só CPU; chifflot
+com P100 e V100; wattímetros) e PCAD. Simulação: StarPU-SimGrid com
+perfmodels calibrados (perguntar ao Lucas se cita o pipeline do CCGRID) e
+o simulador por reamostragem do IPDPS'22.
+#+END_COMMENT
+
+*** Evaluation
+
+#+BEGIN_COMMENT
+- Baselines: todos os nós, 1D do Nesi, diagonal rígida (gen = fact),
+  busca aleatória.
+- Métricas: tempo acumulado ao longo das iterações da MLE, regret,
+  energia (e EDP só para relato).
+- Contabilidade de energia: reserva fixa × nós liberados.
+- Reprodutibilidade: Nix, Org-mode, repetições.
+#+END_COMMENT
+
+*** Schedule
+<<sec.schedule>>
+
+#+BEGIN_COMMENT
+Tabela mês × atividade no formato do Nesi (dez/26 até a defesa), a
+partir de ../plano_pep.org, e depois a lista "Envisioned publication
+opportunities": ERAD/RS 2027 (Joinville, prazo mar/27), SBAC-PAD 2027
+(Belém, jun/27), SSCAD 2027 (Belém, ago/27), journals (FGCS, JPDC, CCPE).
+#+END_COMMENT
+
+** References                                                       :ignore:
 
 # See next section to understand how refs.bib file is created.
 bibliographystyle:abntex2-alf
 [[bibliography:refs.bib]]
 
-** Apêndices                                                        :ignore:
-
-#+LaTeX: \appendix
-
-*** Exemplo de Apêndice
-
-Apêndices contêm material elaborado pelo próprio autor.
-
 * Bib file is here                                                 :noexport:
 
 Tangle this file with C-c C-v t
 #+begin_src bibtex :tangle refs.bib
-@article{orgmode,
-  author =	"Eric Schulte and Dan Davison and Thomas Dye and Carsten Dominik",
-  title =	"A Multi-Language Computing Environment for Literate Programming and Reproducible Research",
-  journal =	"J. of Stat. Soft.",
-  volume =	"46",
-  number =	"3",
-  year = 	"2012",
-}
-
-@book{lamport1994latex,
-  author    = {Leslie Lamport},
-  title     = {LaTeX: A Document Preparation System},
-  edition   = {2},
-  year      = {1994},
-  publisher = {Addison-Wesley},
-  address   = {Reading, Massachusetts}
+@inproceedings{nesi2022ipdps,
+  title     = {Multi-Phase Task-Based {HPC} Applications: Quickly Learning how to Run Fast},
+  author    = {Nesi, Lucas Leandro and Schnorr, Lucas Mello and Legrand, Arnaud},
+  booktitle = {2022 IEEE International Parallel and Distributed Processing Symposium (IPDPS)},
+  publisher = {IEEE},
+  year      = {2022},
+  month     = may,
+  pages     = {357--367},
+  doi       = {10.1109/IPDPS53621.2022.00042},
 }
 #+end_src
 * Emacs setup                                                      :noexport:
