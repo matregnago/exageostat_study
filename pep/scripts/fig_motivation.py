@@ -1,4 +1,5 @@
-"""Fig. 8 of Nesi et al. (IPDPS'22), quantified: mean iteration time per (gen, fact).
+"""Fig. 8 of Nesi et al. (IPDPS'22), quantified: simulated iteration time per (gen, fact).
+Each pair has a single simulated value, repeated over its 30 rows; the mean only collapses them.
 Usage: python3 fig_motivation.py <csv.gz> <out.pdf>"""
 import sys, gzip, csv, collections
 import numpy as np, matplotlib
@@ -44,7 +45,7 @@ ax.set_ylabel("Number of generation nodes")
 ax.set_xticks(range(2, 24, 2)); ax.set_yticks(range(2, 24, 2))
 ax.set_aspect("equal")
 cb = fig.colorbar(im, ax=ax, extend="max", fraction=0.046, pad=0.03)
-cb.set_label("Mean iteration time (s)")
+cb.set_label("Simulated iteration time (s)")
 cb.outline.set_visible(False)
 for s in ax.spines.values(): s.set_visible(False)
 fig.tight_layout()

@@ -77,21 +77,25 @@ communications and are slower than the GPU nodes. Using all nodes in
 both phases, the default choice, is therefore not necessarily the
 fastest.
 
-\citeonline{nesi2022ipdps} exploited this difference. They removed the
+\citeonline{nesi2021icpp} exploited this difference. They removed the
 synchronization between the two phases, so that the factorization
 starts while the generation is still running, and gave each phase its
-own data distribution, with the generation on all nodes and the
-factorization on a subset of them. Since the best number of
-factorization nodes depends on the platform and on the problem, they
+own data distribution, so that each phase uses the nodes more suitable
+to it: the generation runs on all nodes and the factorization on a
+subset of them. Since the best number of factorization nodes depends
+on the platform and on the problem, \citeonline{nesi2022ipdps} then
 proposed to learn it online, during the iterations of a single
 execution, with a Gaussian process guided by a lower bound computed by
-a linear program. This strategy found good configurations in few
-iterations and reduced the execution time compared to using all nodes
-in both phases.
+a linear program. In 16 platform scenarios, this strategy found good
+configurations in few iterations and reached a speedup of up to 51.2%
+over using all nodes in both phases.
 
 #+BEGIN_COMMENT
-TODO: conferir no paper o ganho máximo (~51% nas notas) e o número de
-cenários (16, G5K e Santos Dumont) antes de citar números aqui.
+Conferido em 24/11: a assincronia e a distribuição por fase são do
+ICPP'21 (ref. [4] do IPDPS'22: "The phases can use different
+distributions and can overlap ... [4]"). O 51.2% e os 16 cenários estão
+na Seção VI e na conclusão do IPDPS'22 ("up to 51.2% speedup compared to
+using all the nodes for both phases").
 #+END_COMMENT
 
 Three questions remain open after that work. First, the selection has
@@ -129,27 +133,39 @@ methodology, and Section [[sec.schedule]] the schedule.
 #+BEGIN_COMMENT
 Números recalculados em 23/11 a partir de
 ~/ipdps22/data/results/exageo_128_15che_6chi_2cho.csv.gz (253 pares,
-gen >= fact, uma medição por par; nome do experimento contém "simu").
+gen >= fact; nome do experimento contém "simu").
 Figura: scripts/fig_motivation.py <csv.gz> img/fig_motivation.pdf.
-Conferir no paper: tipos de nó (15 Chetemi, 6 Chifflet, 2 Chifflot,
-lido do nome do arquivo) e se o cenário é simulado.
+Conferido em 24/11 no IPDPS'22: o cenário é o "(f) G5K 2L-6M-15S 128";
+pela Tabela II, L = Chifflot (2x P100), M = Chifflet (2x GTX 1080),
+S = Chetemi (só CPU). É simulado: o nome do experimento tem "simu", o
+app Shiny do Nesi marca os casos 2L-6M-15S como Simul, e cada par tem um
+único valor (as 30 linhas de cada par são idênticas). O próprio paper
+diz que 10/8 ganha de 23/9 por 1,1 s (≈3%) e que "we believe the gain
+will be limited in practice"; o 2D fica como trabalho futuro deles.
 #+END_COMMENT
 
 The online selection of \citeonline{nesi2022ipdps} fixes the
 generation on all nodes and learns only the number of factorization
 nodes. Their Figure 8, however, explores both dimensions for one
-scenario: it presents the iteration time of every pair (generation nodes,
-factorization nodes) with at least as many generation nodes as
-factorization nodes. The platform has 23 heterogeneous Grid'5000 nodes
-of three types (15 Chetemi, 6 Chifflet, and 2 Chifflot). We
-quantified this data, and Figure \ref{fig.motivation} and Table
-\ref{tab.motivation} summarize the result.
+scenario, named (f) G5K 2L-6M-15S 128: it presents the simulated
+iteration time of every pair (generation nodes, factorization nodes)
+with at least as many generation nodes as factorization nodes, on a
+platform of 23 heterogeneous Grid'5000 nodes of three types (15
+Chetemi, 6 Chifflet, and 2 Chifflot). The authors observed that, in
+this scenario, 10 generation nodes and 8 factorization nodes are 1.1\nbsp{}s
+(about 3%) faster than the best configuration with the generation on
+all nodes. They concluded that, although the Gaussian process should
+extend to more dimensions, the gain would be limited in practice, and
+left the modeling of the two-dimensional space as future work. We
+revisited this data to look beyond the best pair. Figure
+\ref{fig.motivation} and Table \ref{tab.motivation} summarize the
+result.
 
 #+BEGIN_EXPORT latex
 \begin{figure}[!tb]
 \centering
 \includegraphics[width=0.8\textwidth]{img/fig_motivation.pdf}
-\caption{Mean iteration time of each pair (generation nodes,
+\caption{Simulated iteration time of each pair (generation nodes,
 factorization nodes) in the scenario of Figure 8 of
 \citeonline{nesi2022ipdps}. Colors saturate at 45\,s. Orange outlines
 mark the pairs within 1\% of the best one. Source: data published by
@@ -163,10 +179,11 @@ The one-dimensional selection already captures most of the gain: using
 9 factorization nodes and all nodes for the generation reduces the
 iteration time by 17.4% compared to using all nodes in both phases,
 while the best pair overall reduces it by 20.0%. The second dimension
-therefore adds only 3.2% over the best one-dimensional configuration.
-Moreover, the region around the best pair is flat. With 8
+therefore adds only 3.2% over the best one-dimensional configuration,
+which confirms the observation of the authors. The data also shows
+what the best pair alone does not: the region around it is flat. With 8
 factorization nodes, any number of generation nodes between 9 and 16
-gives an iteration time within 0.34 s (1%) of the best. Considering
+gives an iteration time within 0.34\nbsp{}s (1%) of the best. Considering
 only time, these configurations are equivalent, and an online
 strategy would spend iterations exploring a dimension that brings
 little.
@@ -174,7 +191,7 @@ little.
 #+BEGIN_EXPORT latex
 \begin{table}[!htb]
 \centering
-\caption{Iteration time of four configurations of Figure \ref{fig.motivation}.}
+\caption{Simulated iteration time of four configurations of Figure \ref{fig.motivation}.}
 \label{tab.motivation}
 \small
 \begin{tabular}{lrrrr}
@@ -196,18 +213,22 @@ the same iteration time. Even if the nodes stay reserved, idle nodes
 typically consume less power than active ones. The configurations that
 time cannot distinguish thus differ in energy, which is why the joint
 selection of the number of nodes of both phases is relevant when energy
-is part of the objective.
-The energy study in the thesis of Nesi,
-which measured time and energy for a sweep of generation and
-factorization nodes on Grid'5000 Lille but did not optimize for
-energy, points in the same direction.
+is part of the objective. The thesis of \citeonline{nesi2023thesis}
+already measured time and energy on Grid'5000 Lille for configurations that vary the number
+of generation and factorization nodes of each node type, and presented
+the time-energy Pareto front of these configurations. This is the
+closest previous result to the energy part of this work.
 
 #+BEGIN_COMMENT
-TODO: citar a tese do Nesi (2023), cap. 7, quando estiver no refs.bib.
+Tese citada (nesi2023thesis, Lume 10183/266986). O thesis-companion (Fig. 7.10, 8 chiclet + 5 chifflot P100 + 2 chifflot
+V100) confirma a medição real e a frente de Pareto tempo × energia. Não
+lido: se ele chegou a escolher configurações por energia (online ou
+não). Se só mostrou a frente, dá para dizer isso aqui e no RW.
 #+END_COMMENT
 
 This analysis has limitations. It covers a single scenario, with one
-measurement per pair, and the data comes from a simulated execution.
+simulated value per pair, so the variability of real executions is
+absent.
 In addition, two of the three node types of this scenario are no
 longer available in Grid'5000, so the scenario can only be reproduced
 in simulation. Characterizing when the second dimension matters, in
@@ -343,13 +364,14 @@ online, por fase e com energia numa aplicação task-based multinó.
 <<cap.methodology>>
 
 #+BEGIN_COMMENT
-Citações com chave provisória, para o refs.bib de amanhã (BibTeX do DBLP
-ou do publisher): augonnet2011starpu, agullo2010chameleon,
-abdulah2018exageostat, stanisic2015simgrid, srinivas2010gpucb.
+Todas as chaves citadas já estão no refs.bib, com BibTeX copiado dos sites
+oficiais (HAL, IEEE, ACM, Elsevier) e do DOI (Crossref). Desvios do original,
+só de formatação: páginas com "--", sem PDF/HAL_ID/abstract; Casanova 2025 com
+pages = {103125} (é o número do artigo) e doi sem a URL.
 #+END_COMMENT
 
 The work follows the order of the specific objectives. We first bring
-the per-phase execution of \citeonline{nesi2022ipdps} to the current
+the per-phase execution of \citeonline{nesi2021icpp} to the current
 software stack (O1), then use it to study the online selection of the
 number of nodes of both phases (O2), and finally add energy to the
 objective (O3). This section describes the application and its
@@ -390,16 +412,53 @@ benefits from GPUs. Because of these differences, the number of nodes
 that minimizes the time of one phase is not necessarily the one that
 minimizes the time of the other.
 
-\citeonline{nesi2022ipdps} exploit this difference in two ways. First,
+\citeonline{nesi2021icpp} exploit this difference in two ways. First,
 the phases run asynchronously: the factorization of a tile starts as
 soon as the tile is generated, without waiting for the end of the
 generation. Second, each phase has its own data distribution: the
 generation uses all nodes, the factorization uses a subset of them,
-and the tiles migrate between the two distributions. Then, the number
-of factorization nodes is learned online, along the MLE iterations,
-with a Gaussian process guided by a lower bound computed by a linear
-program. This work keeps this execution model and adds the number of
+and the tiles migrate between the two distributions.
+\citeonline{nesi2022ipdps} then learn the number of factorization
+nodes online, along the MLE iterations, with a Gaussian process guided
+by a lower bound computed by a linear program. This work keeps this execution model and adds the number of
 generation nodes as a second dimension of the selection.
+
+*** Previous work
+<<sec.previous>>
+
+#+BEGIN_COMMENT
+~0,5 página, um parágrafo por artigo, dizendo o que cada um dá a este
+plano (não é lista de publicações):
+- SSCAD'26 (Tregnago e Schnorr), "Análise do Impacto de Runtimes
+  Task-Based no Desempenho de Algoritmos de Álgebra Linear Densa": StarPU
+  × PaRSEC no Chameleon (Cholesky e LU, com GPU; estendeu o DTD do PaRSEC
+  e os codelets do Chameleon). O StarPU foi superior ou equivalente na
+  maior parte dos casos → justifica a pilha StarPU no O1, embora o
+  handout do ExaGeoStatCPP aponte o PaRSEC. Também é a origem do flake
+  do Chameleon com StarPU ou PaRSEC.
+- UCC'26 (Tregnago, Colle e Schnorr), "On the Viability of using
+  Simulation to Assess Cloud Offload for HPC Workloads": LU com
+  StarPU-MPI simulada com SimGrid + StarPU, perfmodels calibrados em
+  máquinas reais, distribuições 2DBC, 1D-1D e 1D-1D-C em plataformas
+  heterogêneas → é a metodologia de simulação que este plano reusa para
+  explorar o espaço 2D × energia sem rodar tudo de verdade. A 1D-1D-C é
+  da mesma família das distribuições do Nesi.
+- Trabalho em andamento (CCGRID 2027, com o grupo): só no texto, SEM
+  entrada no refs.bib (título indefinido, double-blind, escopo ainda
+  mudando). 2 ou 3 frases. Não afirmar que o ExaGeoStat está no artigo:
+  a calibração dele é da colaboração, não necessariamente do paper.
+  Rascunho:
+  "We are currently extending this methodology in a collaboration within
+  our research group, to be submitted to IEEE/ACM CCGrid 2027, which
+  studies data distributions aware of the wide-area link between
+  on-premise and cloud nodes. As part of this collaboration, StarPU
+  performance models of ExaGeoStat were calibrated for PCAD and
+  Grid'5000 machines; they are the starting point for simulating
+  ExaGeoStat in this plan."
+  Depois de 01/12: trocar "to be submitted to" por "submitted to".
+BibTeX: exportar do SOL (SSCAD) e do IEEE/ACM (UCC); se os anais do UCC
+ainda não saíram, marcar "to appear".
+#+END_COMMENT
 
 *** Software stack and current state
 <<sec.stack>>
@@ -468,8 +527,9 @@ two phases overlap.
 - Preencher modelos de CPU/GPU e memória de cada partição pela página
   de hardware do Grid'5000 (não inventar). Conferir se os wattímetros de
   Lille continuam disponíveis e para quais nós.
-- Perguntar ao Lucas se pode citar o pipeline StarPU-SimGrid do CCGRID
-  (perfmodels calibrados no PCAD).
+- Simulação: citar o UCC'26 (mesma metodologia, já publicada) no
+  parágrafo de StarPU-SimGrid. O CCGRID entra só como menção em
+  "Previous work", sem entrada no refs.bib.
 #+END_COMMENT
 
 The experiments will run on two platforms. The PCAD cluster at
@@ -479,11 +539,14 @@ validation of O1 and for O2 and O3. It combines CPU-only nodes
 (chiclet) with GPU nodes (chifflot, with NVIDIA P100 and V100 GPUs),
 which is the heterogeneity that makes the phases prefer different
 numbers of nodes, and it provides wattmeters that measure the power of
-each node. The energy study of Nesi's thesis used this same platform,
+each node. The energy study of the thesis of \citeonline{nesi2023thesis} used this
+same platform,
 which allows comparing our measurements with the previous results.
 
 Besides real executions, two tools reduce the cost of the evaluation.
-StarPU-SimGrid \cite{stanisic2015simgrid} simulates the execution of a
+SimGrid \cite{casanova2025simgrid} is a framework to build simulators of
+distributed applications and platforms, and StarPU-SimGrid
+\cite{stanisic2015simgrid} uses it to simulate the execution of a
 StarPU application from performance models of the tasks and of the
 platform, which allows studying platforms that are not available. The
 resampling simulator of \citeonline{nesi2022ipdps} replays the
@@ -495,10 +558,16 @@ compared on the same data without new executions.
 <<sec.evaluation>>
 
 For O2, the strategies select a pair (generation nodes, factorization
-nodes) at each MLE iteration. We will extend the Gaussian process of
-\citeonline{nesi2022ipdps} to two dimensions, using a two-dimensional
-lower bound to prune the search space, and compare it with GP-UCB
-\cite{srinivas2010gpucb} and a reinforcement learning agent. The
+nodes) at each MLE iteration. We will extend GP-discontinuous, the
+strategy of \citeonline{nesi2022ipdps}, to two dimensions. This
+strategy is a Gaussian process with an upper confidence bound (GP-UCB)
+\cite{srinivas2010gpucb} enriched with knowledge of the problem: a
+trend given by the lower bound of a linear program, limits on the
+search space, and dummy variables that model discontinuities. In two
+dimensions, the lower bound must cover both phases. We will compare
+this extension with the plain GP-UCB, which uses no knowledge of the
+problem, to measure what this knowledge brings in two dimensions, and
+with a reinforcement learning agent. The
 baselines are: (i) all nodes in both phases, which is the default
 behavior; (ii) the one-dimensional selection of
 \citeonline{nesi2022ipdps}, with the generation on all nodes; (iii) a
@@ -615,6 +684,104 @@ bibliographystyle:abntex2-alf
 
 Tangle this file with C-c C-v t
 #+begin_src bibtex :tangle refs.bib
+@article{augonnet2011starpu,
+  title     = {{StarPU: a unified platform for task scheduling on heterogeneous multicore architectures}},
+  author    = {Augonnet, C{\'e}dric and Thibault, Samuel and Namyst, Raymond and Wacrenier, Pierre-Andr{\'e}},
+  url       = {https://inria.hal.science/inria-00550877},
+  journal   = {{Concurrency and Computation: Practice and Experience}},
+  publisher = {{Wiley}},
+  series    = {Euro-Par 2009 best papers},
+  volume    = {23},
+  number    = {2},
+  pages     = {187--198},
+  year      = {2011},
+  doi       = {10.1002/cpe.1631},
+}
+
+@incollection{agullo2010chameleon,
+  title     = {{Faster, Cheaper, Better -- a Hybridization Methodology to Develop Linear Algebra Software for GPUs}},
+  author    = {Agullo, Emmanuel and Augonnet, C{\'e}dric and Dongarra, Jack and Ltaief, Hatem and Namyst, Raymond and Thibault, Samuel and Tomov, Stanimire},
+  url       = {https://inria.hal.science/inria-00547847},
+  booktitle = {{GPU Computing Gems}},
+  editor    = {Hwu, Wen-mei W.},
+  publisher = {{Morgan Kaufmann}},
+  volume    = {2},
+  year      = {2010},
+  month     = sep,
+}
+
+@article{stanisic2015simgrid,
+  title     = {Faithful Performance Prediction of a Dynamic Task-Based Runtime System for Heterogeneous Multi-Core Architectures},
+  author    = {Stanisic, Luka and Thibault, Samuel and Legrand, Arnaud and Videau, Brice and M{\'e}haut, Jean-Fran{\c{c}}ois},
+  journal   = {Concurrency and Computation: Practice and Experience},
+  publisher = {Wiley},
+  volume    = {27},
+  number    = {16},
+  pages     = {4075--4090},
+  year      = {2015},
+  month     = jul,
+  doi       = {10.1002/cpe.3555},
+}
+
+@article{casanova2025simgrid,
+  title     = {Lowering Entry Barriers to Developing Custom Simulators of Distributed Applications and Platforms with {SimGrid}},
+  author    = {Casanova, Henri and Giersch, Arnaud and Legrand, Arnaud and Quinson, Martin and Suter, Fr{\'e}d{\'e}ric},
+  journal   = {Parallel Computing},
+  volume    = {123},
+  pages     = {103125},
+  year      = {2025},
+  issn      = {0167-8191},
+  doi       = {10.1016/j.parco.2025.103125},
+}
+
+@inproceedings{srinivas2010gpucb,
+  author    = {Srinivas, Niranjan and Krause, Andreas and Kakade, Sham and Seeger, Matthias},
+  title     = {Gaussian process optimization in the bandit setting: no regret and experimental design},
+  year      = {2010},
+  isbn      = {9781605589077},
+  publisher = {Omnipress},
+  address   = {Madison, WI, USA},
+  booktitle = {Proceedings of the 27th International Conference on International Conference on Machine Learning},
+  pages     = {1015--1022},
+  numpages  = {8},
+  location  = {Haifa, Israel},
+  series    = {ICML'10},
+}
+
+@article{abdulah2018exageostat,
+  title     = {{ExaGeoStat}: A High Performance Unified Software for Geostatistics on Manycore Systems},
+  author    = {Abdulah, Sameh and Ltaief, Hatem and Sun, Ying and Genton, Marc G. and Keyes, David E.},
+  journal   = {IEEE Transactions on Parallel and Distributed Systems},
+  publisher = {IEEE},
+  volume    = {29},
+  number    = {12},
+  pages     = {2771--2784},
+  year      = {2018},
+  month     = dec,
+  doi       = {10.1109/TPDS.2018.2850749},
+}
+
+@phdthesis{nesi2023thesis,
+  title     = {Strategies for distributing task-based applications on heterogeneous platforms},
+  author    = {Nesi, Lucas Leandro},
+  school    = {Universidade Federal do Rio Grande do Sul},
+  type      = {Doutorado},
+  year      = {2023},
+  url       = {http://hdl.handle.net/10183/266986},
+}
+
+@inproceedings{nesi2021icpp,
+  title     = {Exploiting System Level Heterogeneity to Improve the Performance of a {GeoStatistics} Multi-Phase Task-Based Application},
+  author    = {Nesi, Lucas Leandro and Legrand, Arnaud and Schnorr, Lucas Mello},
+  booktitle = {50th International Conference on Parallel Processing (ICPP)},
+  publisher = {ACM},
+  address   = {New York, NY, USA},
+  year      = {2021},
+  month     = aug,
+  pages     = {1--10},
+  doi       = {10.1145/3472456.3472516},
+}
+
 @inproceedings{nesi2022ipdps,
   title     = {Multi-Phase Task-Based {HPC} Applications: Quickly Learning how to Run Fast},
   author    = {Nesi, Lucas Leandro and Schnorr, Lucas Mello and Legrand, Arnaud},
