@@ -53,13 +53,13 @@ This document shows how to use the /infufrgs/ class from Org-mode.
 <<cap.intro>>
 
 High-Performance Computing (HPC) platforms combine multi-core CPUs and
-GPUs, often in nodes of different generations. Programming such
+GPUs, often in nodes of different generations and architectures. Programming such
 platforms directly, deciding where each computation runs and when each
 data transfer happens, is complex and does not port well from one
-platform to another. Task-based programming addresses this problem: the
+platform to another. To mitigate that problem, it is appeal to use Task-based programming, which addresses this problem: the
 application is expressed as a Directed Acyclic Graph (DAG) of tasks
 with their data dependencies, and a runtime system, such as StarPU
-\cite{augonnet2011starpu}, maps the tasks to the resources, transfers
+\cite{augonnet2011starpu} and PaRSEC (citar parsec), maps the tasks to the resources, transfers
 the data, and balances the load at execution time. The programmer still
 decides, however, which resources the application uses, and in
 particular on how many nodes it runs.
@@ -89,14 +89,6 @@ execution, with a Gaussian process guided by a lower bound computed by
 a linear program. In 16 platform scenarios, this strategy found good
 configurations in few iterations and reached a speedup of up to 51.2%
 over using all nodes in both phases.
-
-#+BEGIN_COMMENT
-Conferido em 24/11: a assincronia e a distribuição por fase são do
-ICPP'21 (ref. [4] do IPDPS'22: "The phases can use different
-distributions and can overlap ... [4]"). O 51.2% e os 16 cenários estão
-na Seção VI e na conclusão do IPDPS'22 ("up to 51.2% speedup compared to
-using all the nodes for both phases").
-#+END_COMMENT
 
 Three questions remain open after that work. First, the selection has
 only one dimension: the generation always uses all nodes, although the
@@ -130,35 +122,21 @@ methodology, and Section [[sec.schedule]] the schedule.
 *** Motivation
 <<sec.motivation>>
 
-#+BEGIN_COMMENT
-Números recalculados em 23/11 a partir de
-~/ipdps22/data/results/exageo_128_15che_6chi_2cho.csv.gz (253 pares,
-gen >= fact; nome do experimento contém "simu").
-Figura: scripts/fig_motivation.py <csv.gz> img/fig_motivation.pdf.
-Conferido em 24/11 no IPDPS'22: o cenário é o "(f) G5K 2L-6M-15S 128";
-pela Tabela II, L = Chifflot (2x P100), M = Chifflet (2x GTX 1080),
-S = Chetemi (só CPU). É simulado: o nome do experimento tem "simu", o
-app Shiny do Nesi marca os casos 2L-6M-15S como Simul, e cada par tem um
-único valor (as 30 linhas de cada par são idênticas). O próprio paper
-diz que 10/8 ganha de 23/9 por 1,1 s (≈3%) e que "we believe the gain
-will be limited in practice"; o 2D fica como trabalho futuro deles.
-#+END_COMMENT
-
 The online selection of \citeonline{nesi2022ipdps} fixes the
 generation on all nodes and learns only the number of factorization
 nodes. Their Figure 8, however, explores both dimensions for one
 scenario, named (f) G5K 2L-6M-15S 128: it presents the simulated
 iteration time of every pair (generation nodes, factorization nodes)
 with at least as many generation nodes as factorization nodes, on a
-platform of 23 heterogeneous Grid'5000 nodes of three types (15
-Chetemi, 6 Chifflet, and 2 Chifflot). The authors observed that, in
-this scenario, 10 generation nodes and 8 factorization nodes are 1.1\nbsp{}s
-(about 3%) faster than the best configuration with the generation on
+platform of 23 heterogeneous Grid'5000 nodes of three types.
+The authors observed that, in
+this scenario, 10 generation nodes and 8 factorization nodes are
+about 3% faster than the best configuration with the generation on
 all nodes. They concluded that, although the Gaussian process should
 extend to more dimensions, the gain would be limited in practice, and
 left the modeling of the two-dimensional space as future work. We
 revisited this data to look beyond the best pair. Figure
-\ref{fig.motivation} and Table \ref{tab.motivation} summarize the
+\ref{fig.motivation} summarizes the
 result.
 
 #+BEGIN_EXPORT latex
@@ -175,38 +153,6 @@ the authors.}
 
 #+END_EXPORT
 
-The one-dimensional selection already captures most of the gain: using
-9 factorization nodes and all nodes for the generation reduces the
-iteration time by 17.4% compared to using all nodes in both phases,
-while the best pair overall reduces it by 20.0%. The second dimension
-therefore adds only 3.2% over the best one-dimensional configuration,
-which confirms the observation of the authors. The data also shows
-what the best pair alone does not: the region around it is flat. With 8
-factorization nodes, any number of generation nodes between 9 and 16
-gives an iteration time within 0.34\nbsp{}s (1%) of the best. Considering
-only time, these configurations are equivalent, and an online
-strategy would spend iterations exploring a dimension that brings
-little.
-
-#+BEGIN_EXPORT latex
-\begin{table}[!htb]
-\centering
-\caption{Simulated iteration time of four configurations of Figure \ref{fig.motivation}.}
-\label{tab.motivation}
-\small
-\begin{tabular}{lrrrr}
-\toprule
-\textbf{Configuration} & \textbf{Gen.} & \textbf{Fact.} & \textbf{Time (s)} & \textbf{Gain over all nodes} \\
-\midrule
-All nodes in both phases & 23 & 23 & 41.07 & -- \\
-Best 1D (generation on all nodes) & 23 & 9 & 33.93 & 17.4\% \\
-Best rigid (same nodes in both phases) & 8 & 8 & 33.25 & 19.0\% \\
-Best 2D & 10 & 8 & 32.84 & 20.0\% \\
-\bottomrule
-\end{tabular}
-\end{table}
-#+END_EXPORT
-
 Energy breaks this tie. If the nodes that no phase uses are released,
 generating on 9 nodes instead of 16 uses 7 fewer nodes for practically
 the same iteration time. Even if the nodes stay reserved, idle nodes
@@ -219,12 +165,6 @@ of generation and factorization nodes of each node type, and presented
 the time-energy Pareto front of these configurations. This is the
 closest previous result to the energy part of this work.
 
-#+BEGIN_COMMENT
-Tese citada (nesi2023thesis, Lume 10183/266986). O thesis-companion (Fig. 7.10, 8 chiclet + 5 chifflot P100 + 2 chifflot
-V100) confirma a medição real e a frente de Pareto tempo × energia. Não
-lido: se ele chegou a escolher configurações por energia (online ou
-não). Se só mostrou a frente, dá para dizer isso aqui e no RW.
-#+END_COMMENT
 
 This analysis has limitations. It covers a single scenario, with one
 simulated value per pair, so the variability of real executions is
@@ -251,28 +191,19 @@ extends the one-dimensional selection of \citeonline{nesi2022ipdps},
 in which the generation always uses all nodes. To reach this goal, we
 define three specific objectives:
 
-- *O1. Bring the per-phase execution to the current software stack.*
-  Implement the asynchronous execution of the two phases and a
+- Implement the asynchronous execution of the two phases and a
   separate data distribution for each phase in ExaGeoStatCPP, the
-  current version of ExaGeoStat, on top of StarPU 1.4 and Chameleon
-  1.4, with the whole stack packaged in Nix for reproducibility.
-  Success criterion: reproduce the gain of the one-dimensional
-  selection reported by \citeonline{nesi2022ipdps} on a current
-  platform (Grid'5000, Lille site).
-- *O2. Select the number of nodes of both phases online.* Design and
+  current version of ExaGeoStat, on top of the latest StarPU and Chameleon
+  versions, with the whole stack packaged in Nix for reproducibility.
+-  Design and
   evaluate online strategies that choose the pair (generation nodes,
   factorization nodes) along the MLE iterations, with the Gaussian
   process approach of \citeonline{nesi2022ipdps} as the starting
-  point. Success criterion: compare against using all nodes in both
-  phases and against the one-dimensional selection, in cumulative
-  execution time and regret.
-- *O3. Include energy in the objective.* Extend the selection so that
+  point.
+-  Extend the selection so that
   it minimizes energy consumption under a time constraint
   $T \leq (1+\varepsilon)\,T^{*}$, where $T^{*}$ is the best
-  iteration time. Success criterion: energy measured with the
-  wattmeters available in Grid'5000 Lille, and a characterization of
-  the configurations in which the energy optimum differs from the time
-  optimum.
+  iteration time.
 
 *** Expected Results
 
@@ -281,28 +212,6 @@ reproducible version of the per-phase execution of ExaGeoStat, an
 online method that selects the resources of each phase, and a
 quantification of the time and energy gains of this selection
 compared to the one-dimensional selection and to using all nodes.
-
-For O1, we expect a software stack based on current releases of
-StarPU, Chameleon, and ExaGeoStatCPP that reproduces the asynchronous
-execution with per-phase distributions. If a required feature is
-missing in Chameleon or StarPU, we will document what is missing and
-fall back to the legacy implementation as the base for O2 and O3, so
-that the later objectives do not depend on the complete port.
-
-For O2, we expect to identify the scenarios in which the second
-dimension pays for its additional exploration and the scenarios in
-which it does not. Our preliminary analysis (Section
-[[sec.motivation]]) suggests that, considering only time, the gain
-of the second dimension can be small. A map of when the
-one-dimensional selection is already enough is also an acceptable
-result.
-
-For O3, we expect to show in which configurations the energy optimum
-diverges from the time optimum and how much energy can be saved within
-the time tolerance $\varepsilon$. If energy follows time in our
-platforms, we will report under which energy accounting this happens
-(nodes reserved for the whole execution or nodes released when a phase
-does not use them) and why.
 
 ** Related Work
 <<cap.related>>
@@ -363,22 +272,15 @@ online, por fase e com energia numa aplicação task-based multinó.
 ** Methodology
 <<cap.methodology>>
 
-#+BEGIN_COMMENT
-Todas as chaves citadas já estão no refs.bib, com BibTeX copiado dos sites
-oficiais (HAL, IEEE, ACM, Elsevier) e do DOI (Crossref). Desvios do original,
-só de formatação: páginas com "--", sem PDF/HAL_ID/abstract; Casanova 2025 com
-pages = {103125} (é o número do artigo) e doi sem a URL.
-#+END_COMMENT
-
 The work follows the order of the specific objectives. We first bring
 the per-phase execution of \citeonline{nesi2021icpp} to the current
 software stack (O1), then use it to study the online selection of the
 number of nodes of both phases (O2), and finally add energy to the
 objective (O3). This section describes the application and its
-runtime (Section [[sec.exageostat]]), the current state of the software
-(Section [[sec.stack]]), the platforms and measurement tools (Section
-[[sec.platforms]]), and how the strategies will be evaluated (Section
-[[sec.evaluation]]). Section [[sec.schedule]] presents the schedule.
+runtime (Section [[sec.exageostat]]), our previous work on which this
+plan builds (Section [[sec.previous]]), and the current state of the
+software (Section [[sec.stack]]). Section [[sec.schedule]] presents the
+schedule.
 
 *** ExaGeoStat on Chameleon and StarPU
 <<sec.exageostat>>
@@ -463,16 +365,6 @@ ainda não saíram, marcar "to appear".
 *** Software stack and current state
 <<sec.stack>>
 
-#+BEGIN_COMMENT
-Tabela feita a partir de ../ideias.org (estado verificado em 15/11) e do
-R4 em ../plano_pep_17nov.org. ANTES DO ENVIO: conferir cada célula no
-código e anotar arquivo:linha aqui no comentário:
-- espera após a geração: ChameleonImplementation.cpp:174 (SequenceWait)
-- Cholesky síncrona: ChameleonDense.cpp:29 (CHAMELEON_dpotrf_Tile)
-- Desc_Change_Distribution(_Async): Chameleon >= 1.2, só StarPU
-- O fork com as correções para o Chameleon 1.4 ainda não tem commit
-  público.
-#+END_COMMENT
 
 The implementation of \citeonline{nesi2022ipdps} is a patch on the
 legacy version of ExaGeoStat, written in C, on top of versions of
@@ -507,101 +399,10 @@ Nix package & no & yes, in our fork & yes, 1.4.0 \\
 \end{table}
 #+END_EXPORT
 
-As a first step of O1, we packaged the stack in Nix: StarPU 1.4.12,
-with FxT traces and StarPU-MPI, and Chameleon 1.4.0 with the StarPU
-backend. ExaGeoStatCPP already compiles on top of these versions, with
-small changes for Chameleon 1.4, and its data generation, MLE, and
-prediction examples run on a small problem. The remaining steps of
-O1 are: (i) remove the wait between the generation and the
-factorization and use the asynchronous Cholesky factorization; (ii)
-make the generation tasks aware of the data distribution, so that each
-node generates only the tiles it owns; and (iii) change the
-distribution between the phases with the asynchronous Chameleon
-function. The execution traces of StarPU will be used to check that the
-two phases overlap.
-
-*** Platforms and measurements
-<<sec.platforms>>
-
-#+BEGIN_COMMENT
-- Preencher modelos de CPU/GPU e memória de cada partição pela página
-  de hardware do Grid'5000 (não inventar). Conferir se os wattímetros de
-  Lille continuam disponíveis e para quais nós.
-- Simulação: citar o UCC'26 (mesma metodologia, já publicada) no
-  parágrafo de StarPU-SimGrid. O CCGRID entra só como menção em
-  "Previous work", sem entrada no refs.bib.
-#+END_COMMENT
-
-The experiments will run on two platforms. The PCAD cluster at
-INF/UFRGS will be used for the development of O1 and for the first
-multi-node runs. The Lille site of Grid'5000 will be used for the
-validation of O1 and for O2 and O3. It combines CPU-only nodes
-(chiclet) with GPU nodes (chifflot, with NVIDIA P100 and V100 GPUs),
-which is the heterogeneity that makes the phases prefer different
-numbers of nodes, and it provides wattmeters that measure the power of
-each node. The energy study of the thesis of \citeonline{nesi2023thesis} used this
-same platform,
-which allows comparing our measurements with the previous results.
-
-Besides real executions, two tools reduce the cost of the evaluation.
-SimGrid \cite{casanova2025simgrid} is a framework to build simulators of
-distributed applications and platforms, and StarPU-SimGrid
-\cite{stanisic2015simgrid} uses it to simulate the execution of a
-StarPU application from performance models of the tasks and of the
-platform, which allows studying platforms that are not available. The
-resampling simulator of \citeonline{nesi2022ipdps} replays the
-measured iteration times of each configuration, sampling one of the
-measurements at each step, so that many online strategies can be
-compared on the same data without new executions.
-
-*** Evaluation
-<<sec.evaluation>>
-
-For O2, the strategies select a pair (generation nodes, factorization
-nodes) at each MLE iteration. We will extend GP-discontinuous, the
-strategy of \citeonline{nesi2022ipdps}, to two dimensions. This
-strategy is a Gaussian process with an upper confidence bound (GP-UCB)
-\cite{srinivas2010gpucb} enriched with knowledge of the problem: a
-trend given by the lower bound of a linear program, limits on the
-search space, and dummy variables that model discontinuities. In two
-dimensions, the lower bound must cover both phases. We will compare
-this extension with the plain GP-UCB, which uses no knowledge of the
-problem, to measure what this knowledge brings in two dimensions, and
-with a reinforcement learning agent. The
-baselines are: (i) all nodes in both phases, which is the default
-behavior; (ii) the one-dimensional selection of
-\citeonline{nesi2022ipdps}, with the generation on all nodes; (iii) a
-rigid selection, with the same number of nodes in both phases; and
-(iv) a random search. The metrics are the cumulative execution time
-along the MLE iterations and the regret, defined as the difference
-between the cumulative time of the strategy and that of the best fixed
-configuration chosen in hindsight. The cumulative time captures the
-cost of exploration, which is decisive when the application runs only
-a few dozen iterations.
-
-For O3, the objective becomes the minimization of the energy of an
-iteration under the constraint $T \leq (1+\varepsilon)\,T^{*}$, where
-$T^{*}$ is the best iteration time, which is itself unknown and must be
-estimated online. The energy depends on how idle nodes are accounted
-for. We will consider two cases: nodes reserved for the whole
-execution, in which a node that a phase does not use still consumes
-its idle power; and nodes released when no phase uses them, in which
-they do not count. The time-only and energy-aware selections will be
-compared in time, energy, and energy-delay product.
-
-All experiments will follow a reproducible methodology. The software
-stack is defined in Nix, the experiments are described and analyzed in
-Org-mode documents, each configuration is measured several times in a
-randomized order, and the results are reported with their confidence
-intervals.
 
 *** Schedule
 <<sec.schedule>>
 
-#+BEGIN_COMMENT
-Datas do Seminário de Andamento e da defesa estimadas (ingresso por
-volta de abr/2026, defesa em até 24 meses). Confirmar com o Lucas.
-#+END_COMMENT
 
 Table \ref{tab.sched} presents the proposed schedule, from December
 2026 until the defense. The activities follow the order of the
@@ -661,18 +462,11 @@ Master thesis defense &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  & $\bullet$ \
 
 #+latex: \noindent
 *Envisioned publication opportunities*: We intend to publish the
-results in the following conferences and journals (the list is not
-exhaustive):
+results in the following conferences and journals:
 
-- ERAD/RS 2027 (Joinville), deadline in March 2027, with the results
-  of O1.
-- SBAC-PAD 2027 (Belém), deadline in June 2027, with the results of
-  O2.
-- SSCAD 2027 (Belém), deadline in August 2027, with the results of O3.
-- A journal article combining O2 and O3, in venues such as Future
-  Generation Computer Systems (FGCS), Journal of Parallel and
-  Distributed Computing (JPDC), or Concurrency and Computation:
-  Practice and Experience (CCPE).
+- ERAD/RS 2027 (Joinville), deadline in March 2027
+- SBAC-PAD 2027 (Belém), deadline in June 2027
+- SSCAD 2027 (Belém), deadline in August 2027.
 
 ** References                                                       :ignore:
 
