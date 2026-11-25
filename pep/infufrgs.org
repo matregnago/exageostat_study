@@ -274,9 +274,9 @@ online, por fase e com energia numa aplicação task-based multinó.
 
 The work follows the order of the specific objectives. We first bring
 the per-phase execution of \citeonline{nesi2021icpp} to the current
-software stack (O1), then use it to study the online selection of the
-number of nodes of both phases (O2), and finally add energy to the
-objective (O3). This section describes the application and its
+software stack, then use it to study the online selection of the
+number of nodes of both phases, and finally add energy to the
+objective. This section describes the application and its
 runtime (Section [[sec.exageostat]]), our previous work on which this
 plan builds (Section [[sec.previous]]), and the current state of the
 software (Section [[sec.stack]]). Section [[sec.schedule]] presents the
@@ -369,35 +369,20 @@ ainda não saíram, marcar "to appear".
 The implementation of \citeonline{nesi2022ipdps} is a patch on the
 legacy version of ExaGeoStat, written in C, on top of versions of
 StarPU and Chameleon that are no longer maintained. The current version
-of the application, ExaGeoStatCPP, was rewritten in C++ but does not
-include the per-phase execution. Table \ref{tab.stack} summarizes the
-state of each component. In ExaGeoStatCPP, the generation is followed
-by a wait for all its tasks before the factorization starts, and the
-factorization uses the synchronous Chameleon interface. There is also
-no custom data distribution nor migration between phases. On the
-other hand, recent versions of Chameleon provide a function to change
-the distribution of a matrix asynchronously, which is equivalent to the
-data migration implemented in the patch, but only with the StarPU
-backend.
-
-#+BEGIN_EXPORT latex
-\begin{table}[H]
-\centering
-\caption{State of the software components used in this work.}\label{tab.stack}
-\small\singlespacing
-\begin{tabular}{>{\raggedright\arraybackslash}p{3.5cm}>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}p{3.2cm}}
-\toprule
-\textbf{Feature} & \textbf{Legacy patch of \citeonline{nesi2022ipdps}} & \textbf{ExaGeoStatCPP 2.0} & \textbf{Chameleon} \\
-\midrule
-Phases without wait between them & yes & no & asynchronous interface \\[2pt]
-Separate distribution per phase & yes & no & custom distribution \\[2pt]
-Data migration between phases & yes & no & since 1.2, StarPU only \\[2pt]
-Pinned versions & legacy StarPU and Chameleon & StarPU 1.3.10, Chameleon 1.1.0 & 1.4 requires StarPU 1.4 \\[2pt]
-Nix package & no & yes, in our fork & yes, 1.4.0 \\
-\bottomrule
-\end{tabular}
-\end{table}
-#+END_EXPORT
+of the application, ExaGeoStatCPP 2.0, was rewritten in C++ and is
+pinned to StarPU 1.3.10 and Chameleon 1.1.0, but does not include the
+per-phase execution: the generation is followed by a wait for all its
+tasks before the factorization starts, the factorization uses the
+synchronous Chameleon interface, and there is neither a custom data
+distribution nor migration between phases. Chameleon already provides
+the building blocks for these features. It has an asynchronous
+interface, supports custom data distributions, and, since version 1.2,
+provides a function to change the distribution of a matrix
+asynchronously, which is equivalent to the data migration implemented
+in the patch, but only with the StarPU backend. Moving to the latest
+Chameleon, version 1.4, also requires StarPU 1.4. Chameleon 1.4.0
+already has a Nix package, and we packaged ExaGeoStatCPP in Nix in our
+fork, which is the base of this work.
 
 
 *** Schedule
@@ -405,30 +390,20 @@ Nix package & no & yes, in our fork & yes, 1.4.0 \\
 
 
 Table \ref{tab.sched} presents the proposed schedule, from December
-2026 until the defense. The activities follow the order of the
-specific objectives, since each one depends on the previous. The
-first months are dedicated to O1: removing the wait between the two
-phases of ExaGeoStatCPP, using the asynchronous Cholesky
-factorization, and giving each phase its own data distribution. These
-changes are first tested on a single node and then on multiple nodes
-of the PCAD cluster at INF/UFRGS. O1 ends with the reproduction of the
-one-dimensional gain of \citeonline{nesi2022ipdps} on Grid'5000
-Lille. In parallel, we start O2 with the evaluation of two-dimensional
-strategies in the resampling simulator of \citeonline{nesi2022ipdps},
-which allows comparing many strategies without running the
-application each time, and then move to the online selection on real
-executions. O3 starts with the measurement of the energy consumption
-of the configurations on Grid'5000 Lille, followed by the
-energy-aware selection. The Progress Seminar is planned for the
-middle of 2027, and the last months are dedicated to a journal
-article and to the master thesis.
-
-If the schedule slips, we will first reduce the scope of O3 to an
-offline characterization of the energy consumption of the
-configurations, without the online energy-aware selection. If O1
-takes longer than planned, the legacy implementation of
-\citeonline{nesi2022ipdps} will serve as the base for O2, so that the
-online selection does not depend on the complete port.
+2026 until the defense in March 2028. The first step is to bring the
+per-phase execution to ExaGeoStatCPP, testing it first on a single node
+and then on multiple nodes of the PCAD cluster, and to validate it by
+reproducing the one-dimensional gain of \citeonline{nesi2022ipdps} on
+Grid'5000 Lille. Meanwhile, two-dimensional strategies are compared in
+the resampling simulator of \citeonline{nesi2022ipdps}, and the most
+promising ones are then evaluated online on real executions. Next, we
+measure the energy consumption of the configurations on Grid'5000
+Lille and extend the online selection to the energy objective. The
+last steps are a journal article with the consolidated results and the
+writing of the master thesis. If the schedule slips, the energy part is
+reduced to an offline characterization, and the legacy implementation
+of \citeonline{nesi2022ipdps} can replace the port as the base for the
+online selection.
 
 #+BEGIN_EXPORT latex
 \begin{table}[H]
@@ -436,25 +411,34 @@ online selection does not depend on the complete port.
 \caption{Proposed schedule.}\label{tab.sched}
 \small
 \setlength{\tabcolsep}{2.5pt}
+\newcommand*{\sx}{\ensuremath{\bullet}}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{lcccccccccccccccc}
+\begin{tabular}{@{}l*{16}{c}@{}}
 \toprule
  & 2026 & \multicolumn{12}{c}{2027} & \multicolumn{3}{c}{2028} \\
-\cmidrule(lr){2-2}\cmidrule(lr){3-14}\cmidrule(lr){15-17}
+\cmidrule(lr){2-2}\cmidrule(lr){3-14}\cmidrule(l){15-17}
 \textbf{Activity} & 12 & 01 & 02 & 03 & 04 & 05 & 06 & 07 & 08 & 09 & 10 & 11 & 12 & 01 & 02 & 03 \\
 \midrule
-Related work review & $\bullet$ & $\bullet$ & $\bullet$ &  &  &  & $\bullet$ &  &  & $\bullet$ &  &  &  &  &  &  \\
-O1: asynchronous phases and per-phase distribution & $\bullet$ & $\bullet$ & $\bullet$ &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-O1: single-node and multi-node runs (PCAD) &  & $\bullet$ & $\bullet$ &  &  &  &  &  &  &  &  &  &  &  &  &  \\
-O1: validation of the 1D gain (G5K Lille) &  &  &  & $\bullet$ & $\bullet$ &  &  &  &  &  &  &  &  &  &  &  \\
-O2: 2D strategies in the resampling simulator &  &  &  & $\bullet$ & $\bullet$ & $\bullet$ &  &  &  &  &  &  &  &  &  &  \\
-O2: online 2D selection on real runs &  &  &  &  & $\bullet$ & $\bullet$ &  &  &  &  &  &  &  &  &  &  \\
-O3: energy measurement (G5K Lille) &  &  &  &  &  &  & $\bullet$ & $\bullet$ &  &  &  &  &  &  &  &  \\
-O3: energy-aware online selection &  &  &  &  &  &  &  & $\bullet$ & $\bullet$ &  &  &  &  &  &  &  \\
-Progress Seminar &  &  &  &  &  &  &  & $\bullet$ &  &  &  &  &  &  &  &  \\
-Write articles &  &  & $\bullet$ & $\bullet$ &  & $\bullet$ & $\bullet$ &  & $\bullet$ & $\bullet$ & $\bullet$ & $\bullet$ & $\bullet$ &  &  &  \\
-Write master thesis &  &  &  &  &  &  &  &  &  &  &  &  & $\bullet$ & $\bullet$ & $\bullet$ &  \\
-Master thesis defense &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  & $\bullet$ \\
+Related work review & \sx & \sx & \sx &  &  &  & \sx &  &  & \sx &  &  &  &  &  &  \\
+\addlinespace[3pt]
+\multicolumn{17}{@{}l}{\textit{Per-phase execution in ExaGeoStatCPP}} \\
+\quad Asynchronous phases and per-phase distribution & \sx & \sx & \sx &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+\quad Single-node and multi-node runs (PCAD) &  & \sx & \sx &  &  &  &  &  &  &  &  &  &  &  &  &  \\
+\quad Reproduction of the 1D gain (G5K Lille) &  &  &  & \sx & \sx &  &  &  &  &  &  &  &  &  &  &  \\
+\addlinespace[3pt]
+\multicolumn{17}{@{}l}{\textit{Joint online selection of generation and factorization nodes}} \\
+\quad Strategies in the resampling simulator &  &  &  & \sx & \sx & \sx &  &  &  &  &  &  &  &  &  &  \\
+\quad Online selection on real runs &  &  &  &  & \sx & \sx &  &  &  &  &  &  &  &  &  &  \\
+\addlinespace[3pt]
+\multicolumn{17}{@{}l}{\textit{Energy-aware selection}} \\
+\quad Energy measurement (G5K Lille) &  &  &  &  &  &  & \sx & \sx &  &  &  &  &  &  &  &  \\
+\quad Energy-aware online selection &  &  &  &  &  &  &  & \sx & \sx &  &  &  &  &  &  &  \\
+\addlinespace[3pt]
+\multicolumn{17}{@{}l}{\textit{Milestones and writing}} \\
+\quad Progress Seminar &  &  &  &  &  &  &  & \sx &  &  &  &  &  &  &  &  \\
+\quad Write articles &  &  & \sx & \sx &  & \sx & \sx &  & \sx & \sx & \sx & \sx & \sx &  &  &  \\
+\quad Write master thesis &  &  &  &  &  &  &  &  &  &  &  &  & \sx & \sx & \sx &  \\
+\quad Master thesis defense &  &  &  &  &  &  &  &  &  &  &  &  &  &  &  & \sx \\
 \bottomrule
 \end{tabular}}
 \end{table}
@@ -466,7 +450,10 @@ results in the following conferences and journals:
 
 - ERAD/RS 2027 (Joinville), deadline in March 2027
 - SBAC-PAD 2027 (Belém), deadline in June 2027
-- SSCAD 2027 (Belém), deadline in August 2027.
+- SSCAD 2027 (Belém), deadline in August 2027
+- Future Generation Computer Systems (FGCS), Elsevier
+- Journal of Parallel and Distributed Computing (JPDC), Elsevier
+- Concurrency and Computation: Practice and Experience (CCPE), Wiley
 
 ** References                                                       :ignore:
 
