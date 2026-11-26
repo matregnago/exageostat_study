@@ -1,4 +1,4 @@
-NAME=infufrgs
+NAME=pep
 
 # Run inside `nix develop` so that TEXINPUTS points to infufrgs.cls.
 all: $(NAME).pdf

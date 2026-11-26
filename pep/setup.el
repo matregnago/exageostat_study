@@ -1,5 +1,5 @@
 ;;; setup.el --- Org-mode configuration for the infufrgs class
-;; Loaded by export.el (batch) and by infufrgs.org's local variables.
+;; Loaded by export.el (batch) and by pep.org's local variables.
 
 (add-to-list 'load-path (file-name-directory (or load-file-name buffer-file-name)))
 (require 'ox-latex)

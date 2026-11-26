@@ -12,18 +12,18 @@ rec {
   texinputs = "${infufrgs}//:";
 
   pdf = pkgs.stdenv.mkDerivation {
-    name = "infufrgs-paper";
+    name = "pep";
     src = ./.;
     nativeBuildInputs = [ emacs pkgs.texliveFull ];
     TEXINPUTS = texinputs;
     buildPhase = ''
       export HOME=$TMPDIR
       emacs --batch --load export.el
-      latexmk -pdf -interaction=nonstopmode -halt-on-error infufrgs.tex
+      latexmk -pdf -interaction=nonstopmode -halt-on-error pep.tex
     '';
     installPhase = ''
       mkdir -p $out
-      cp infufrgs.pdf $out/
+      cp pep.pdf $out/
     '';
   };
 
