@@ -236,8 +236,7 @@ always uses all nodes. To reach this goal, we define three specific objectives:
 - Design and evaluate online strategies that choose the pair (generation nodes,
   factorization nodes) along the MLE iterations, with the Gaussian process
   approach of \citeonline{nesi2022ipdps} as the starting point.
-- Extend the selection so that it minimizes energy consumption under a time
-  constraint $T \leq (1+\varepsilon)\,T^{*}$, where $T^{*}$ is the best iteration time.
+- Extend the selection so that it minimizes energy consumption.
 
 *** Expected Results
 
@@ -273,11 +272,7 @@ guided by a lower bound computed by a linear program, while the generation
 always uses all nodes. The thesis of \citeonline{nesi2023thesis} also measured
 the time and the energy of ExaGeoStat iterations that vary the number of nodes
 of each phase, as a perspective rather than as part of the selection. Outside
-task-based runtimes, coupled and in situ workflows face a similar problem, since
-their components run at the same time and share the nodes of the allocation.
-\citeonline{kim2012ccgrid} resize at runtime the groups of processes of the
-constituents of a coupled climate model, predicting the time of each constituent
-from previous measurements with piecewise linear and cubic spline interpolation.
+task-based runtimes,
 \citeonline{wang2023fgcs} grow and shrink the number of processes of an in situ
 visualization that runs in a data staging area, using a model of its execution
 time as a function of the number of processes and of the data size; in one
@@ -301,8 +296,7 @@ dimensions. They report energy savings of 8.74% on average with negligible
 performance loss. \citeonline{cascajo2023hpcmall} use the FlexMPI runtime to
 change the number of processes of a running MPI application, together with the
 core frequency, and choose the configuration with energy and time models
-interpolated from measurements collected during the execution. Taking the phases
-of the application into account in this decision is left as future work. These
+interpolated from measurements collected during the execution. These
 works show that the number of threads or processes affects energy as well as
 time, and that a good configuration can be found during the execution. However,
 they adjust threads and frequencies while the set of nodes stays fixed
@@ -315,12 +309,7 @@ The method of this work builds on Gaussian process optimization. GP-UCB
 confidence bound of a Gaussian process, with a cumulative regret that grows
 sublinearly with the number of evaluations. This suits problems in which each
 evaluation is expensive, such as one MLE iteration, and is the basis of the
-online selection of \citeonline{nesi2022ipdps}. SafeOpt \cite{sui2015safeopt}
-extends this approach to problems in which every evaluated configuration must
-satisfy a safety threshold: starting from configurations known to be safe, it
-only evaluates configurations that are safe with high probability. This matches
-the energy objective of this work, in which the configurations tried along the
-execution should respect the time constraint $T \leq (1+\varepsilon)\,T^{*}$. To evaluate energy
+online selection of \citeonline{nesi2022ipdps}. To evaluate energy
 without running every configuration on real hardware,
 \citeonline{marcondes2026sscad} apply a per-task CPU and GPU energy model, built
 from hardware measurements, to StarPU-SimGrid traces \cite{stanisic2015simgrid},
@@ -328,49 +317,6 @@ and predict the energy of a Cholesky factorization with maximum errors of 6% on
 CPUs and 28% on GPUs. This method allows exploring the two-dimensional space
 with energy in simulation before measuring the most promising configurations on
 real nodes.
-
-Table \ref{tab.related} summarizes the positioning of this work. The works of
-the first group select the resources of each phase, but offline or in one
-dimension, and without energy. The works of the second group include energy
-online, but outside task-based runtimes and without selecting the nodes of each
-phase. To the best of our knowledge, no previous work selects online, during a
-single execution, the number of nodes of each phase of a multi-phase task-based
-application with energy consumption as part of the objective, which is the goal
-of this work.
-
-#+BEGIN_EXPORT latex
-\begin{table}[!tb]
-\centering
-\caption{Positioning of this work. $\bullet$: yes; $\circ$: partially;
---: no.}\label{tab.related}
-\small
-\begin{tabular}{@{}lccccc@{}}
-\toprule
-\textbf{Work} & \textbf{Online} & \textbf{\shortstack{Nodes\\per phase}} & \textbf{\shortstack{Multi-\\node}} & \textbf{Energy} & \textbf{\shortstack{Task-\\based}} \\
-\midrule
-\citeonline{nesi2021icpp} & -- & $\bullet$ & $\bullet$ & -- & $\bullet$ \\
-\citeonline{nesi2023fgcs} & -- & $\bullet$ & $\bullet$ & -- & $\bullet$ \\
-\citeonline{nesi2022ipdps} & $\bullet$ & $\circ$\textsuperscript{a} & $\bullet$ & -- & $\bullet$ \\
-\citeonline{nesi2023thesis}, Sec.~7.4 & -- & $\bullet$ & $\bullet$ & $\circ$\textsuperscript{b} & $\bullet$ \\
-\citeonline{kim2012ccgrid} & $\bullet$ & $\bullet$\textsuperscript{c} & $\bullet$ & -- & -- \\
-\citeonline{wang2023fgcs} & $\bullet$ & $\bullet$\textsuperscript{c} & $\bullet$ & -- & -- \\
-\citeonline{lorenzon2019aurora} & $\bullet$ & $\circ$\textsuperscript{d} & -- & $\bullet$ & -- \\
-\citeonline{li2013tpds} & $\bullet$ & $\circ$\textsuperscript{d} & $\bullet$ & $\bullet$ & -- \\
-\citeonline{cascajo2023hpcmall} & $\bullet$ & -- & $\circ$ & $\bullet$ & -- \\
-\midrule
-This work & $\bullet$ & $\bullet$ & $\bullet$ & $\bullet$ & $\bullet$ \\
-\bottomrule
-\end{tabular}
-
-\vspace{2pt}
-\begin{minipage}{\textwidth}\footnotesize
-\textsuperscript{a} Only the factorization; the generation uses all nodes.
-\textsuperscript{b} Offline measurements, not part of the selection.\\
-\textsuperscript{c} Processes per concurrent component.
-\textsuperscript{d} Threads per phase or parallel region, within the node.
-\end{minipage}
-\end{table}
-#+END_EXPORT
 
 ** Methodology
 <<cap.methodology>>
@@ -454,10 +400,7 @@ strategies are compared in the resampling simulator of
 online on real executions. Next, we measure the energy consumption of the
 configurations on Grid'5000 Lille and extend the online selection to the energy
 objective. The last steps are a journal article with the consolidated results
-and the writing of the master thesis. If the schedule slips, the energy part is
-reduced to an offline characterization, and the legacy implementation of
-\citeonline{nesi2022ipdps} can replace the port as the base for the online
-selection.
+and the writing of the master thesis.
 
 #+BEGIN_EXPORT latex
 \begin{table}[H]

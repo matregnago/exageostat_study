@@ -1,6 +1,5 @@
 result
 *.tex
-*.pdf
 *.aux
 *.bbl
 *.blg
