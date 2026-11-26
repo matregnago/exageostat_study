@@ -39,12 +39,64 @@
 ** Front matter                                                     :ignore:
 
 #+begin_abstract
-Este documento demonstra o uso da classe /infufrgs/ a partir do
-Org-mode.
+Programming parallel applications for heterogeneous HPC platforms is easier with
+the task-based programming paradigm, in which a Directed Acyclic Graph (DAG) of
+tasks models the application behavior. A runtime system takes care of many
+activities usually carried out by the application developer, such as task
+mapping, data transfers, and load balancing. The developer still decides,
+however, on how many nodes the application runs. This decision is harder for
+applications made of phases with different computational profiles. In each
+iteration of the ExaGeoStat geostatistics application, the generation of a
+covariance matrix is embarrassingly parallel and runs on CPUs, while its
+Cholesky factorization has many dependencies and communications and benefits
+from GPUs. Using all nodes in both phases is therefore not necessarily the
+fastest choice, and the best number of nodes for each phase depends on the
+platform and on the problem. Previous work learned online the number of
+factorization nodes, but kept the generation on all nodes and minimized only
+time, although configurations with practically the same time may use different
+numbers of nodes and thus consume different amounts of energy. We then propose
+to learn online, during a single execution, how many nodes each phase of a
+multi-phase task-based application should use, with energy consumption as part
+of the objective. The base of this approach is the per-phase execution of
+ExaGeoStat, in which the phases run asynchronously, each with its own data
+distribution. We will port this execution to the current versions of ExaGeoStat,
+StarPU, and Chameleon. The selection builds on Gaussian process optimization,
+which finds good configurations in few iterations, and the energy objective
+requires measurements on real hardware. The joint selection of the nodes of both
+phases could reduce the energy consumption of the application with practically
+no increase in its execution time.
 #+end_abstract
 
 #+begin_translatedabstract
-This document shows how to use the /infufrgs/ class from Org-mode.
+A programação de aplicações paralelas para plataformas heterogêneas de HPC é
+mais fácil com o paradigma de programação baseada em tarefas, em que um Grafo
+Acíclico Dirigido (DAG) de tarefas modela o comportamento da aplicação. Um
+sistema de execução (/runtime/) fica responsável por diversas atividades
+normalmente executadas pelo desenvolvedor da aplicação, como o mapeamento das
+tarefas, as transferências de dados e o balanceamento de carga. O desenvolvedor,
+no entanto, ainda decide em quantos nós a aplicação executa. Essa decisão é mais
+difícil em aplicações compostas por fases com perfis computacionais distintos.
+Em cada iteração da aplicação de geoestatística ExaGeoStat, a geração de uma
+matriz de covariância é embaraçosamente paralela e executa em CPUs, enquanto a
+sua fatoração de Cholesky tem muitas dependências e comunicações e se beneficia
+de GPUs. Usar todos os nós nas duas fases, portanto, não é necessariamente a
+escolha mais rápida, e o melhor número de nós de cada fase depende da plataforma
+e do problema. Trabalhos anteriores aprenderam online o número de nós da
+fatoração, mas mantiveram a geração em todos os nós e minimizaram apenas o
+tempo, embora configurações com praticamente o mesmo tempo possam usar números
+diferentes de nós e, portanto, consumir quantidades diferentes de energia. Desta
+maneira, propomos aprender online, durante uma única execução, quantos nós cada
+fase de uma aplicação multifase baseada em tarefas deve usar, com o consumo de
+energia como parte do objetivo. A base dessa abordagem é a execução por fase do
+ExaGeoStat, em que as fases executam de forma assíncrona, cada uma com a sua
+própria distribuição de dados. Vamos portar essa execução para as versões atuais
+do ExaGeoStat, do StarPU e do Chameleon. A seleção parte da otimização com
+processos gaussianos, que encontra boas configurações em poucas iterações, e o
+objetivo de energia exige medições em hardware real. A seleção conjunta dos nós
+das duas fases pode reduzir o consumo de energia da aplicação praticamente sem
+aumentar o seu tempo de execução.
+# A classe não quebra o parágrafo antes das palavras-chave do Resumo.
+#+latex: \par
 #+end_translatedabstract
 
 #+LaTeX: \tableofcontents
@@ -52,92 +104,82 @@ This document shows how to use the /infufrgs/ class from Org-mode.
 ** Introduction
 <<cap.intro>>
 
-High-Performance Computing (HPC) platforms combine multi-core CPUs and
-GPUs, often in nodes of different generations and architectures. Programming such
-platforms directly, deciding where each computation runs and when each
-data transfer happens, is complex and does not port well from one
-platform to another. To mitigate that problem, it is appeal to use Task-based programming, which addresses this problem: the
-application is expressed as a Directed Acyclic Graph (DAG) of tasks
-with their data dependencies, and a runtime system, such as StarPU
-\cite{augonnet2011starpu} and PaRSEC (citar parsec), maps the tasks to the resources, transfers
-the data, and balances the load at execution time. The programmer still
-decides, however, which resources the application uses, and in
+High-Performance Computing (HPC) platforms combine multi-core CPUs and GPUs,
+often in nodes of different generations and architectures. Programming such
+platforms directly, deciding where each computation runs and when each data
+transfer happens, is complex and does not port well from one platform to
+another. To mitigate that problem, it is appeal to use Task-based programming,
+which addresses this problem: the application is expressed as a Directed Acyclic
+Graph (DAG) of tasks with their data dependencies, and a runtime system, such as
+StarPU \cite{augonnet2011starpu} and PaRSEC (citar parsec), maps the tasks to
+the resources, transfers the data, and balances the load at execution time. The
+programmer still decides, however, which resources the application uses, and in
 particular on how many nodes it runs.
 
 This decision is harder for applications made of phases with different
-computational profiles. ExaGeoStat \cite{abdulah2018exageostat}, a
-geostatistics application, is an example. Each iteration of its
-Maximum Likelihood Estimation (MLE) first generates a covariance
-matrix, an embarrassingly parallel phase that runs on CPUs, and then
-factorizes it with a Cholesky factorization, a phase with many
-dependencies and communications that benefits from GPUs. On a
-heterogeneous platform, adding nodes speeds up the generation but may
-slow down the factorization, because the extra nodes add
-communications and are slower than the GPU nodes. Using all nodes in
-both phases, the default choice, is therefore not necessarily the
-fastest.
+computational profiles. ExaGeoStat \cite{abdulah2018exageostat}, a geostatistics
+application, is an example. Each iteration of its Maximum Likelihood Estimation
+(MLE) first generates a covariance matrix, an embarrassingly parallel phase that
+runs on CPUs, and then factorizes it with a Cholesky factorization, a phase with
+many dependencies and communications that benefits from GPUs. On a heterogeneous
+platform, adding nodes speeds up the generation but may slow down the
+factorization, because the extra nodes add communications and are slower than
+the GPU nodes. Using all nodes in both phases, the default choice, is therefore
+not necessarily the fastest.
 
 \citeonline{nesi2021icpp} exploited this difference. They removed the
-synchronization between the two phases, so that the factorization
-starts while the generation is still running, and gave each phase its
-own data distribution, so that each phase uses the nodes more suitable
-to it: the generation runs on all nodes and the factorization on a
-subset of them. Since the best number of factorization nodes depends
-on the platform and on the problem, \citeonline{nesi2022ipdps} then
-proposed to learn it online, during the iterations of a single
-execution, with a Gaussian process guided by a lower bound computed by
-a linear program. In 16 platform scenarios, this strategy found good
-configurations in few iterations and reached a speedup of up to 51.2%
+synchronization between the two phases, so that the factorization starts while
+the generation is still running, and gave each phase its own data distribution,
+so that each phase uses the nodes more suitable to it: the generation runs on
+all nodes and the factorization on a subset of them. Since the best number of
+factorization nodes depends on the platform and on the problem,
+\citeonline{nesi2022ipdps} then proposed to learn it online, during the
+iterations of a single execution, with a Gaussian process guided by a lower
+bound computed by a linear program. In 16 platform scenarios, this strategy
+found good configurations in few iterations and reached a speedup of up to 51.2%
 over using all nodes in both phases.
 
-Three questions remain open after that work. First, the selection has
-only one dimension: the generation always uses all nodes, although the
-number of generation nodes could also be chosen. Second, the objective
-is only time. With the per-phase execution, some nodes stay idle during
-a phase, and configurations with similar time may use different
-numbers of nodes and thus consume different amounts of energy. Third,
-the implementation is a patch on the legacy version of ExaGeoStat, on
-top of versions of StarPU and Chameleon that are no longer maintained,
-and the current version of the application, ExaGeoStatCPP, does not
+Three questions remain open after that work. First, the selection has only one
+dimension: the generation always uses all nodes, although the number of
+generation nodes could also be chosen. Second, the objective is only time. With
+the per-phase execution, some nodes stay idle during a phase, and configurations
+with similar time may use different numbers of nodes and thus consume different
+amounts of energy. Third, the implementation is a patch on the legacy version of
+ExaGeoStat, on top of versions of StarPU and Chameleon that are no longer
+maintained, and the current version of the application, ExaGeoStatCPP, does not
 include the per-phase execution.
 
-This work addresses these three questions. Its main objective is to
-learn online, during a single execution of a multi-phase task-based
-application, how many nodes each phase should use, with energy
-consumption as part of the objective. The expected contributions are:
-(i) the per-phase execution of ExaGeoStat on the current software
-stack, packaged for reproducibility; (ii) an online strategy that
-selects jointly the number of generation and factorization nodes; and
-(iii) the inclusion of energy in this selection, with measurements on
+This work addresses these three questions. Its main objective is to learn
+online, during a single execution of a multi-phase task-based application, how
+many nodes each phase should use, with energy consumption as part of the
+objective. The expected contributions are: (i) the per-phase execution of
+ExaGeoStat on the current software stack, packaged for reproducibility; (ii) an
+online strategy that selects jointly the number of generation and factorization
+nodes; and (iii) the inclusion of energy in this selection, with measurements on
 real hardware.
 
-The remainder of this document is organized as follows. Section
-[[sec.motivation]] quantifies, from the data published by
-\citeonline{nesi2022ipdps}, how much the second dimension brings and
-why energy matters for it. Chapter [[cap.objectives]] details the
-objectives and the expected results. Chapter [[cap.related]] discusses
-the related work. Chapter [[cap.methodology]] presents the
-methodology, and Section [[sec.schedule]] the schedule.
+The remainder of this document is organized as follows. Section [[sec.motivation]]
+quantifies, from the data published by \citeonline{nesi2022ipdps}, how much the
+second dimension brings and why energy matters for it. Chapter [[cap.objectives]]
+details the objectives and the expected results. Chapter [[cap.related]] discusses
+the related work. Chapter [[cap.methodology]] presents the methodology, and Section
+[[sec.schedule]] the schedule.
 
 *** Motivation
 <<sec.motivation>>
 
-The online selection of \citeonline{nesi2022ipdps} fixes the
-generation on all nodes and learns only the number of factorization
-nodes. Their Figure 8, however, explores both dimensions for one
-scenario, named (f) G5K 2L-6M-15S 128: it presents the simulated
-iteration time of every pair (generation nodes, factorization nodes)
-with at least as many generation nodes as factorization nodes, on a
-platform of 23 heterogeneous Grid'5000 nodes of three types.
-The authors observed that, in
-this scenario, 10 generation nodes and 8 factorization nodes are
-about 3% faster than the best configuration with the generation on
-all nodes. They concluded that, although the Gaussian process should
-extend to more dimensions, the gain would be limited in practice, and
-left the modeling of the two-dimensional space as future work. We
-revisited this data to look beyond the best pair. Figure
-\ref{fig.motivation} summarizes the
-result.
+The online selection of \citeonline{nesi2022ipdps} fixes the generation on all
+nodes and learns only the number of factorization nodes. Their Figure 8,
+however, explores both dimensions for one scenario, named (f) G5K 2L-6M-15S 128:
+it presents the simulated iteration time of every pair (generation nodes,
+factorization nodes) with at least as many generation nodes as factorization
+nodes, on a platform of 23 heterogeneous Grid'5000 nodes of three types. The
+authors observed that, in this scenario, 10 generation nodes and 8 factorization
+nodes are about 3% faster than the best configuration with the generation on all
+nodes. They concluded that, although the Gaussian process should extend to more
+dimensions, the gain would be limited in practice, and left the modeling of the
+two-dimensional space as future work. We revisited this data to look beyond the
+best pair. Figure \ref{fig.motivation} summarizes the result.
 
 #+BEGIN_EXPORT latex
 \begin{figure}[!tb]
@@ -153,169 +195,148 @@ the authors.}
 
 #+END_EXPORT
 
-Energy breaks this tie. If the nodes that no phase uses are released,
-generating on 9 nodes instead of 16 uses 7 fewer nodes for practically
-the same iteration time. Even if the nodes stay reserved, idle nodes
-typically consume less power than active ones. The configurations that
-time cannot distinguish thus differ in energy, which is why the joint
-selection of the number of nodes of both phases is relevant when energy
-is part of the objective. The thesis of \citeonline{nesi2023thesis}
-already measured time and energy on Grid'5000 Lille for configurations that vary the number
-of generation and factorization nodes of each node type, and presented
-the time-energy Pareto front of these configurations. This is the
-closest previous result to the energy part of this work.
+Energy breaks this tie. If the nodes that no phase uses are released, generating
+on 9 nodes instead of 16 uses 7 fewer nodes for practically the same iteration
+time. Even if the nodes stay reserved, idle nodes typically consume less power
+than active ones. The configurations that time cannot distinguish thus differ in
+energy, which is why the joint selection of the number of nodes of both phases
+is relevant when energy is part of the objective. The thesis of
+\citeonline{nesi2023thesis} already measured time and energy on Grid'5000 Lille
+for configurations that vary the number of generation and factorization nodes of
+each node type, and presented the time-energy Pareto front of these
+configurations. This is the closest previous result to the energy part of this
+work.
 
 
-This analysis has limitations. It covers a single scenario, with one
-simulated value per pair, so the variability of real executions is
-absent.
-In addition, two of the three node types of this scenario are no
-longer available in Grid'5000, so the scenario can only be reproduced
-in simulation. Characterizing when the second dimension matters, in
-time and in energy, on current platforms is part of the objectives of
-this work.
+This analysis has limitations. It covers a single scenario, with one simulated
+value per pair, so the variability of real executions is absent. In addition,
+two of the three node types of this scenario are no longer available in
+Grid'5000, so the scenario can only be reproduced in simulation. Characterizing
+when the second dimension matters, in time and in energy, on current platforms
+is part of the objectives of this work.
 
 ** Objectives
 <<cap.objectives>>
 
-The main objective of this work is to learn online, during a single
-execution of a multi-phase task-based application, how many nodes each
-phase should use, with energy consumption as part of the objective.
-We use the ExaGeoStat geostatistics application as the case study.
-Each iteration of its Maximum Likelihood Estimation (MLE) has two
-phases with different profiles: the generation of the covariance
-matrix and its Cholesky factorization. The selection is made jointly
-for both phases, the number of nodes for the generation and the number
-of nodes for the factorization, while the application runs. This
-extends the one-dimensional selection of \citeonline{nesi2022ipdps},
-in which the generation always uses all nodes. To reach this goal, we
-define three specific objectives:
+The main objective of this work is to learn online, during a single execution of
+a multi-phase task-based application, how many nodes each phase should use, with
+energy consumption as part of the objective. We use the ExaGeoStat geostatistics
+application as the case study. Each iteration of its Maximum Likelihood
+Estimation (MLE) has two phases with different profiles: the generation of the
+covariance matrix and its Cholesky factorization. The selection is made jointly
+for both phases, the number of nodes for the generation and the number of nodes
+for the factorization, while the application runs. This extends the
+one-dimensional selection of \citeonline{nesi2022ipdps}, in which the generation
+always uses all nodes. To reach this goal, we define three specific objectives:
 
-- Implement the asynchronous execution of the two phases and a
-  separate data distribution for each phase in ExaGeoStatCPP, the
-  current version of ExaGeoStat, on top of the latest StarPU and Chameleon
-  versions, with the whole stack packaged in Nix for reproducibility.
--  Design and
-  evaluate online strategies that choose the pair (generation nodes,
-  factorization nodes) along the MLE iterations, with the Gaussian
-  process approach of \citeonline{nesi2022ipdps} as the starting
-  point.
--  Extend the selection so that
-  it minimizes energy consumption under a time constraint
-  $T \leq (1+\varepsilon)\,T^{*}$, where $T^{*}$ is the best
-  iteration time.
+- Implement the asynchronous execution of the two phases and a separate data
+  distribution for each phase in ExaGeoStatCPP, the current version of
+  ExaGeoStat, on top of the latest StarPU and Chameleon versions, with the whole
+  stack packaged in Nix for reproducibility.
+- Design and evaluate online strategies that choose the pair (generation nodes,
+  factorization nodes) along the MLE iterations, with the Gaussian process
+  approach of \citeonline{nesi2022ipdps} as the starting point.
+- Extend the selection so that it minimizes energy consumption under a time
+  constraint $T \leq (1+\varepsilon)\,T^{*}$, where $T^{*}$ is the best iteration time.
 
 *** Expected Results
 
-At the end of this work, we expect to provide an up-to-date and
-reproducible version of the per-phase execution of ExaGeoStat, an
-online method that selects the resources of each phase, and a
-quantification of the time and energy gains of this selection
-compared to the one-dimensional selection and to using all nodes.
+At the end of this work, we expect to provide an up-to-date and reproducible
+version of the per-phase execution of ExaGeoStat, an online method that selects
+the resources of each phase, and a quantification of the time and energy gains
+of this selection compared to the one-dimensional selection and to using all
+nodes.
 
 ** Related Work
 <<cap.related>>
 
-This chapter discusses three groups of related work. The first group
-assigns different resources to the phases, or components, of an
-application with different computational profiles. The second group
-selects online how many resources an application uses, with energy
-consumption as part of the objective. The third group provides the
-methods on which this work builds: optimization with Gaussian processes
-using few and safe evaluations, and the estimation of the energy of
-task-based applications.
+This chapter discusses three groups of related work. The first group assigns
+different resources to the phases, or components, of an application with
+different computational profiles. The second group selects online how many
+resources an application uses, with energy consumption as part of the objective.
+The third group provides the methods on which this work builds: optimization
+with Gaussian processes using few and safe evaluations, and the estimation of
+the energy of task-based applications.
 
-Few works assign different resources to the phases of a task-based
-application. The closest ones come from our research group and use
-ExaGeoStat as the main case study. \citeonline{nesi2021icpp} removed
-the synchronization between the generation and the factorization
-phases and gave each phase its own data distribution over
-heterogeneous nodes, so that the factorization runs on a subset of
-them. \citeonline{nesi2023fgcs} extended these strategies with a
-methodology to build a static distribution that considers the cost and
-the overlap of the phases, and applied them to a second multi-phase
-application, the Diodon multidimensional scaling. In both works, the
-distribution is chosen before the execution.
-\citeonline{nesi2022ipdps} then learned the number of factorization
-nodes online, along the MLE iterations, with a Gaussian process guided
-by a lower bound computed by a linear program, while the generation
-always uses all nodes. The thesis of \citeonline{nesi2023thesis}
-also measured the time and the energy of ExaGeoStat iterations that
-vary the number of nodes of each phase, as a perspective rather than
-as part of the selection. Outside task-based runtimes, coupled and in
-situ workflows face a similar problem, since their components run at
-the same time and share the nodes of the allocation.
-\citeonline{kim2012ccgrid} resize at runtime the groups of processes
-of the constituents of a coupled climate model, predicting the time of
-each constituent from previous measurements with piecewise linear and
-cubic spline interpolation. \citeonline{wang2023fgcs} grow and shrink
-the number of processes of an in situ visualization that runs in a
-data staging area, using a model of its execution time as a function
-of the number of processes and of the data size; in one experiment,
-this saves 41% of the core-hours compared with a static allocation.
-Even if these works adapt the resources of each phase or component,
-none of them selects online the resources of both phases of a
-task-based application, and none includes energy in the selection. In
-particular, the selection of \citeonline{nesi2022ipdps} has a single
-dimension, minimizes only time, and runs on a legacy software stack.
+Few works assign different resources to the phases of a task-based application.
+The closest ones come from our research group and use ExaGeoStat as the main
+case study. \citeonline{nesi2021icpp} removed the synchronization between the
+generation and the factorization phases and gave each phase its own data
+distribution over heterogeneous nodes, so that the factorization runs on a
+subset of them. \citeonline{nesi2023fgcs} extended these strategies with a
+methodology to build a static distribution that considers the cost and the
+overlap of the phases, and applied them to a second multi-phase application, the
+Diodon multidimensional scaling. In both works, the distribution is chosen
+before the execution. \citeonline{nesi2022ipdps} then learned the number of
+factorization nodes online, along the MLE iterations, with a Gaussian process
+guided by a lower bound computed by a linear program, while the generation
+always uses all nodes. The thesis of \citeonline{nesi2023thesis} also measured
+the time and the energy of ExaGeoStat iterations that vary the number of nodes
+of each phase, as a perspective rather than as part of the selection. Outside
+task-based runtimes, coupled and in situ workflows face a similar problem, since
+their components run at the same time and share the nodes of the allocation.
+\citeonline{kim2012ccgrid} resize at runtime the groups of processes of the
+constituents of a coupled climate model, predicting the time of each constituent
+from previous measurements with piecewise linear and cubic spline interpolation.
+\citeonline{wang2023fgcs} grow and shrink the number of processes of an in situ
+visualization that runs in a data staging area, using a model of its execution
+time as a function of the number of processes and of the data size; in one
+experiment, this saves 41% of the core-hours compared with a static allocation.
+Even if these works adapt the resources of each phase or component, none of them
+selects online the resources of both phases of a task-based application, and
+none includes energy in the selection. In particular, the selection of
+\citeonline{nesi2022ipdps} has a single dimension, minimizes only time, and runs
+on a legacy software stack.
 
 Other works select online how many resources to use with energy in the
-objective. Aurora \cite{lorenzon2019aurora} finds at runtime the number
-of threads of each parallel region of an OpenMP application, without
-recompiling it, and improves the trade-off between performance and
-energy over the default OpenMP execution. \citeonline{li2013tpds}
-combine dynamic concurrency throttling and dynamic voltage and
-frequency scaling (DVFS) in hybrid MPI/OpenMP applications. They
-predict the time and the power of each OpenMP phase under each
-configuration from a few sampled configurations, and observe that
-combining two programming models makes the configuration space grow
-from one to two dimensions. They report energy savings of 8.74% on
-average with negligible performance loss.
-\citeonline{cascajo2023hpcmall} use the FlexMPI runtime to change the
-number of processes of a running MPI application, together with the
-core frequency, and choose the configuration with energy and time
-models interpolated from measurements collected during the execution.
-Taking the phases of the application into account in this decision is
-left as future work. These works show that the number of threads or
-processes affects energy as well as time, and that a good
-configuration can be found during the execution. However, they adjust
-threads and frequencies while the set of nodes stays fixed
-\cite{lorenzon2019aurora,li2013tpds}, or the number of processes of
-the application as a whole \cite{cascajo2023hpcmall}. None of them
-assigns different subsets of heterogeneous nodes to the phases of a
-task-based application.
+objective. Aurora \cite{lorenzon2019aurora} finds at runtime the number of
+threads of each parallel region of an OpenMP application, without recompiling
+it, and improves the trade-off between performance and energy over the default
+OpenMP execution. \citeonline{li2013tpds} combine dynamic concurrency throttling
+and dynamic voltage and frequency scaling (DVFS) in hybrid MPI/OpenMP
+applications. They predict the time and the power of each OpenMP phase under
+each configuration from a few sampled configurations, and observe that combining
+two programming models makes the configuration space grow from one to two
+dimensions. They report energy savings of 8.74% on average with negligible
+performance loss. \citeonline{cascajo2023hpcmall} use the FlexMPI runtime to
+change the number of processes of a running MPI application, together with the
+core frequency, and choose the configuration with energy and time models
+interpolated from measurements collected during the execution. Taking the phases
+of the application into account in this decision is left as future work. These
+works show that the number of threads or processes affects energy as well as
+time, and that a good configuration can be found during the execution. However,
+they adjust threads and frequencies while the set of nodes stays fixed
+\cite{lorenzon2019aurora,li2013tpds}, or the number of processes of the
+application as a whole \cite{cascajo2023hpcmall}. None of them assigns different
+subsets of heterogeneous nodes to the phases of a task-based application.
 
-The method of this work builds on Gaussian process optimization.
-GP-UCB \cite{srinivas2010gpucb} chooses the next configuration to
-evaluate by the upper confidence bound of a Gaussian process, with a
-cumulative regret that grows sublinearly with the number of
-evaluations. This suits problems in which each evaluation is
-expensive, such as one MLE iteration, and is the basis of the online
-selection of \citeonline{nesi2022ipdps}. SafeOpt
-\cite{sui2015safeopt} extends this approach to problems in which every
-evaluated configuration must satisfy a safety threshold: starting from
-configurations known to be safe, it only evaluates configurations that
-are safe with high probability. This matches the energy objective of
-this work, in which the configurations tried along the execution
-should respect the time constraint $T \leq (1+\varepsilon)\,T^{*}$. To
-evaluate energy without running every configuration on real hardware,
-\citeonline{marcondes2026sscad} apply a per-task CPU and GPU energy
-model, built from hardware measurements, to StarPU-SimGrid traces
-\cite{stanisic2015simgrid}, and predict the energy of a Cholesky
-factorization with maximum errors of 6% on CPUs and 28% on GPUs. This
-method allows exploring the two-dimensional space with energy in
-simulation before measuring the most promising configurations on real
-nodes.
+The method of this work builds on Gaussian process optimization. GP-UCB
+\cite{srinivas2010gpucb} chooses the next configuration to evaluate by the upper
+confidence bound of a Gaussian process, with a cumulative regret that grows
+sublinearly with the number of evaluations. This suits problems in which each
+evaluation is expensive, such as one MLE iteration, and is the basis of the
+online selection of \citeonline{nesi2022ipdps}. SafeOpt \cite{sui2015safeopt}
+extends this approach to problems in which every evaluated configuration must
+satisfy a safety threshold: starting from configurations known to be safe, it
+only evaluates configurations that are safe with high probability. This matches
+the energy objective of this work, in which the configurations tried along the
+execution should respect the time constraint $T \leq (1+\varepsilon)\,T^{*}$. To evaluate energy
+without running every configuration on real hardware,
+\citeonline{marcondes2026sscad} apply a per-task CPU and GPU energy model, built
+from hardware measurements, to StarPU-SimGrid traces \cite{stanisic2015simgrid},
+and predict the energy of a Cholesky factorization with maximum errors of 6% on
+CPUs and 28% on GPUs. This method allows exploring the two-dimensional space
+with energy in simulation before measuring the most promising configurations on
+real nodes.
 
-Table \ref{tab.related} summarizes the positioning of this work. The
-works of the first group select the resources of each phase, but
-offline or in one dimension, and without energy. The works of the
-second group include energy online, but outside task-based runtimes
-and without selecting the nodes of each phase. To the best of our
-knowledge, no previous work selects online, during a single execution,
-the number of nodes of each phase of a multi-phase task-based
-application with energy consumption as part of the objective, which is
-the goal of this work.
+Table \ref{tab.related} summarizes the positioning of this work. The works of
+the first group select the resources of each phase, but offline or in one
+dimension, and without energy. The works of the second group include energy
+online, but outside task-based runtimes and without selecting the nodes of each
+phase. To the best of our knowledge, no previous work selects online, during a
+single execution, the number of nodes of each phase of a multi-phase task-based
+application with energy consumption as part of the objective, which is the goal
+of this work.
 
 #+BEGIN_EXPORT latex
 \begin{table}[!tb]
@@ -354,99 +375,89 @@ This work & $\bullet$ & $\bullet$ & $\bullet$ & $\bullet$ & $\bullet$ \\
 ** Methodology
 <<cap.methodology>>
 
-The work follows the order of the specific objectives. We first bring
-the per-phase execution of \citeonline{nesi2021icpp} to the current
-software stack, then use it to study the online selection of the
-number of nodes of both phases, and finally add energy to the
-objective. This section describes the application and its
-runtime (Section [[sec.exageostat]]) and the current state of the
-software (Section [[sec.stack]]). Section [[sec.schedule]] presents the
-schedule.
+The work follows the order of the specific objectives. We first bring the
+per-phase execution of \citeonline{nesi2021icpp} to the current software stack,
+then use it to study the online selection of the number of nodes of both phases,
+and finally add energy to the objective. This section describes the application
+and its runtime (Section [[sec.exageostat]]) and the current state of the software
+(Section [[sec.stack]]). Section [[sec.schedule]] presents the schedule.
 
 *** ExaGeoStat on Chameleon and StarPU
 <<sec.exageostat>>
 
 StarPU \cite{augonnet2011starpu} is a task-based runtime that uses the
-Sequential Task Flow (STF) model. The application submits tasks
-sequentially, declaring the data each task reads and writes, and the
-runtime infers the dependencies, builds the Directed Acyclic Graph
-(DAG) of tasks, and schedules each task to a CPU core or a GPU at
-execution time. The runtime also transfers data between memories and
-nodes, so that the same code runs on heterogeneous platforms. With
-StarPU-MPI, each node submits the whole DAG, executes the tasks that
-write data it owns, and exchanges data with the other nodes when a
-dependency crosses nodes. The data distribution, that is, which node
-owns each tile of a matrix, therefore defines where each task runs.
-Chameleon \cite{agullo2010chameleon} is a dense linear algebra library
-built on this model, which provides, among others, the tiled Cholesky
-factorization.
+Sequential Task Flow (STF) model. The application submits tasks sequentially,
+declaring the data each task reads and writes, and the runtime infers the
+dependencies, builds the Directed Acyclic Graph (DAG) of tasks, and schedules
+each task to a CPU core or a GPU at execution time. The runtime also transfers
+data between memories and nodes, so that the same code runs on heterogeneous
+platforms. With StarPU-MPI, each node submits the whole DAG, executes the tasks
+that write data it owns, and exchanges data with the other nodes when a
+dependency crosses nodes. The data distribution, that is, which node owns each
+tile of a matrix, therefore defines where each task runs. Chameleon
+\cite{agullo2010chameleon} is a dense linear algebra library built on this
+model, which provides, among others, the tiled Cholesky factorization.
 
-ExaGeoStat \cite{abdulah2018exageostat} is a geostatistics application
-that estimates the parameters of a spatial statistical model by
-Maximum Likelihood Estimation (MLE). Each MLE iteration evaluates the
-likelihood for a set of parameters proposed by an optimizer. The
-evaluation has two dominant phases with different profiles. The
-generation phase builds the covariance matrix: each tile is computed
-independently from the locations and the parameters, which makes the
-phase embarrassingly parallel and executed on CPUs. The factorization
-phase computes the Cholesky factorization of this matrix with
-Chameleon, which has many dependencies, communicates between nodes, and
-benefits from GPUs. Because of these differences, the number of nodes
-that minimizes the time of one phase is not necessarily the one that
-minimizes the time of the other.
+ExaGeoStat \cite{abdulah2018exageostat} is a geostatistics application that
+estimates the parameters of a spatial statistical model by Maximum Likelihood
+Estimation (MLE). Each MLE iteration evaluates the likelihood for a set of
+parameters proposed by an optimizer. The evaluation has two dominant phases with
+different profiles. The generation phase builds the covariance matrix: each tile
+is computed independently from the locations and the parameters, which makes the
+phase embarrassingly parallel and executed on CPUs. The factorization phase
+computes the Cholesky factorization of this matrix with Chameleon, which has
+many dependencies, communicates between nodes, and benefits from GPUs. Because
+of these differences, the number of nodes that minimizes the time of one phase
+is not necessarily the one that minimizes the time of the other.
 
-\citeonline{nesi2021icpp} exploit this difference in two ways. First,
-the phases run asynchronously: the factorization of a tile starts as
-soon as the tile is generated, without waiting for the end of the
-generation. Second, each phase has its own data distribution: the
-generation uses all nodes, the factorization uses a subset of them,
-and the tiles migrate between the two distributions.
-\citeonline{nesi2022ipdps} then learn the number of factorization
-nodes online, along the MLE iterations, with a Gaussian process guided
-by a lower bound computed by a linear program. This work keeps this execution model and adds the number of
-generation nodes as a second dimension of the selection.
+\citeonline{nesi2021icpp} exploit this difference in two ways. First, the phases
+run asynchronously: the factorization of a tile starts as soon as the tile is
+generated, without waiting for the end of the generation. Second, each phase has
+its own data distribution: the generation uses all nodes, the factorization uses
+a subset of them, and the tiles migrate between the two distributions.
+\citeonline{nesi2022ipdps} then learn the number of factorization nodes online,
+along the MLE iterations, with a Gaussian process guided by a lower bound
+computed by a linear program. This work keeps this execution model and adds the
+number of generation nodes as a second dimension of the selection.
 
 *** Software stack and current state
 <<sec.stack>>
 
-The implementation of \citeonline{nesi2022ipdps} is a patch on the
-legacy version of ExaGeoStat, written in C, on top of versions of
-StarPU and Chameleon that are no longer maintained. The current version
-of the application, ExaGeoStatCPP 2.0, was rewritten in C++ and is
-pinned to StarPU 1.3.10 and Chameleon 1.1.0, but does not include the
-per-phase execution: the generation is followed by a wait for all its
-tasks before the factorization starts, the factorization uses the
-synchronous Chameleon interface, and there is neither a custom data
-distribution nor migration between phases. Chameleon already provides
-the building blocks for these features. It has an asynchronous
-interface, supports custom data distributions, and, since version 1.2,
-provides a function to change the distribution of a matrix
-asynchronously, which is equivalent to the data migration implemented
-in the patch, but only with the StarPU backend. Moving to the latest
-Chameleon, version 1.4, also requires StarPU 1.4. Chameleon 1.4.0
-already has a Nix package, and we packaged ExaGeoStatCPP in Nix in our
-fork, which is the base of this work.
+The implementation of \citeonline{nesi2022ipdps} is a patch on the legacy
+version of ExaGeoStat, written in C, on top of versions of StarPU and Chameleon
+that are no longer maintained. The current version of the application,
+ExaGeoStatCPP 2.0, was rewritten in C++ and is pinned to StarPU 1.3.10 and
+Chameleon 1.1.0, but does not include the per-phase execution: the generation is
+followed by a wait for all its tasks before the factorization starts, the
+factorization uses the synchronous Chameleon interface, and there is neither a
+custom data distribution nor migration between phases. Chameleon already
+provides the building blocks for these features. It has an asynchronous
+interface, supports custom data distributions, and, since version 1.2, provides
+a function to change the distribution of a matrix asynchronously, which is
+equivalent to the data migration implemented in the patch, but only with the
+StarPU backend. Moving to the latest Chameleon, version 1.4, also requires
+StarPU 1.4. Chameleon 1.4.0 already has a Nix package, and we packaged
+ExaGeoStatCPP in Nix in our fork, which is the base of this work.
 
 
 *** Schedule
 <<sec.schedule>>
 
 
-Table \ref{tab.sched} presents the proposed schedule, from December
-2026 until the defense in March 2028. The first step is to bring the
-per-phase execution to ExaGeoStatCPP, testing it first on a single node
-and then on multiple nodes of the PCAD cluster, and to validate it by
-reproducing the one-dimensional gain of \citeonline{nesi2022ipdps} on
-Grid'5000 Lille. Meanwhile, two-dimensional strategies are compared in
-the resampling simulator of \citeonline{nesi2022ipdps}, and the most
-promising ones are then evaluated online on real executions. Next, we
-measure the energy consumption of the configurations on Grid'5000
-Lille and extend the online selection to the energy objective. The
-last steps are a journal article with the consolidated results and the
-writing of the master thesis. If the schedule slips, the energy part is
-reduced to an offline characterization, and the legacy implementation
-of \citeonline{nesi2022ipdps} can replace the port as the base for the
-online selection.
+Table \ref{tab.sched} presents the proposed schedule, from December 2026 until
+the defense in March 2028. The first step is to bring the per-phase execution to
+ExaGeoStatCPP, testing it first on a single node and then on multiple nodes of
+the PCAD cluster, and to validate it by reproducing the one-dimensional gain of
+\citeonline{nesi2022ipdps} on Grid'5000 Lille. Meanwhile, two-dimensional
+strategies are compared in the resampling simulator of
+\citeonline{nesi2022ipdps}, and the most promising ones are then evaluated
+online on real executions. Next, we measure the energy consumption of the
+configurations on Grid'5000 Lille and extend the online selection to the energy
+objective. The last steps are a journal article with the consolidated results
+and the writing of the master thesis. If the schedule slips, the energy part is
+reduced to an offline characterization, and the legacy implementation of
+\citeonline{nesi2022ipdps} can replace the port as the base for the online
+selection.
 
 #+BEGIN_EXPORT latex
 \begin{table}[H]
@@ -488,8 +499,8 @@ Related work review & \sx & \sx & \sx &  &  &  & \sx &  &  & \sx &  &  &  &  &  
 #+END_EXPORT
 
 #+latex: \noindent
-*Envisioned publication opportunities*: We intend to publish the
-results in the following conferences and journals:
+*Envisioned publication opportunities*: We intend to publish the results in the
+following conferences and journals:
 
 - ERAD/RS 2027 (Joinville), deadline in March 2027
 - SBAC-PAD 2027 (Belém), deadline in June 2027
