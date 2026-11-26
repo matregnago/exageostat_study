@@ -216,58 +216,140 @@ compared to the one-dimensional selection and to using all nodes.
 ** Related Work
 <<cap.related>>
 
-#+BEGIN_COMMENT
-~3 páginas, a seção que o Lucas pediu forte (reunião #2). Um parágrafo de
-abertura com os eixos, uma subseção por eixo, e a tabela de
-posicionamento no fim. Fonte: ../trabalhos_relacionados.org.
-Regra: o que não foi lido é citado só no nível do resumo.
-BibTeX: do DBLP ou do publisher (DOI → Crossref), nunca de memória.
-#+END_COMMENT
+This chapter discusses three groups of related work. The first group
+assigns different resources to the phases, or components, of an
+application with different computational profiles. The second group
+selects online how many resources an application uses, with energy
+consumption as part of the objective. The third group provides the
+methods on which this work builds: optimization with Gaussian processes
+using few and safe evaluations, and the estimation of the energy of
+task-based applications.
 
-*** Multi-phase applications and per-phase resources
+Few works assign different resources to the phases of a task-based
+application. The closest ones come from our research group and use
+ExaGeoStat as the main case study. \citeonline{nesi2021icpp} removed
+the synchronization between the generation and the factorization
+phases and gave each phase its own data distribution over
+heterogeneous nodes, so that the factorization runs on a subset of
+them. \citeonline{nesi2023fgcs} extended these strategies with a
+methodology to build a static distribution that considers the cost and
+the overlap of the phases, and applied them to a second multi-phase
+application, the Diodon multidimensional scaling. In both works, the
+distribution is chosen before the execution.
+\citeonline{nesi2022ipdps} then learned the number of factorization
+nodes online, along the MLE iterations, with a Gaussian process guided
+by a lower bound computed by a linear program, while the generation
+always uses all nodes. The thesis of \citeonline{nesi2023thesis}
+also measured the time and the energy of ExaGeoStat iterations that
+vary the number of nodes of each phase, as a perspective rather than
+as part of the selection. Outside task-based runtimes, coupled and in
+situ workflows face a similar problem, since their components run at
+the same time and share the nodes of the allocation.
+\citeonline{kim2012ccgrid} resize at runtime the groups of processes
+of the constituents of a coupled climate model, predicting the time of
+each constituent from previous measurements with piecewise linear and
+cubic spline interpolation. \citeonline{wang2023fgcs} grow and shrink
+the number of processes of an in situ visualization that runs in a
+data staging area, using a model of its execution time as a function
+of the number of processes and of the data size; in one experiment,
+this saves 41% of the core-hours compared with a static allocation.
+Even if these works adapt the resources of each phase or component,
+none of them selects online the resources of both phases of a
+task-based application, and none includes energy in the selection. In
+particular, the selection of \citeonline{nesi2022ipdps} has a single
+dimension, minimizes only time, and runs on a legacy software stack.
 
-#+BEGIN_COMMENT
-Nesi ICPP'21 (distribuição por fase), IPDPS'22, FGCS'23 (Diodon);
-redistribuição: Chameleon (Desc_Change_Distribution_Async), Cao CLUSTER'20
-(PaRSEC); Beaumont IPDPS'23 (distribuições para qualquer número de nós);
-tarefas moldáveis e maleáveis.
-#+END_COMMENT
+Other works select online how many resources to use with energy in the
+objective. Aurora \cite{lorenzon2019aurora} finds at runtime the number
+of threads of each parallel region of an OpenMP application, without
+recompiling it, and improves the trade-off between performance and
+energy over the default OpenMP execution. \citeonline{li2013tpds}
+combine dynamic concurrency throttling and dynamic voltage and
+frequency scaling (DVFS) in hybrid MPI/OpenMP applications. They
+predict the time and the power of each OpenMP phase under each
+configuration from a few sampled configurations, and observe that
+combining two programming models makes the configuration space grow
+from one to two dimensions. They report energy savings of 8.74% on
+average with negligible performance loss.
+\citeonline{cascajo2023hpcmall} use the FlexMPI runtime to change the
+number of processes of a running MPI application, together with the
+core frequency, and choose the configuration with energy and time
+models interpolated from measurements collected during the execution.
+Taking the phases of the application into account in this decision is
+left as future work. These works show that the number of threads or
+processes affects energy as well as time, and that a good
+configuration can be found during the execution. However, they adjust
+threads and frequencies while the set of nodes stays fixed
+\cite{lorenzon2019aurora,li2013tpds}, or the number of processes of
+the application as a whole \cite{cascajo2023hpcmall}. None of them
+assigns different subsets of heterogeneous nodes to the phases of a
+task-based application.
 
-*** Online configuration selection with few evaluations
+The method of this work builds on Gaussian process optimization.
+GP-UCB \cite{srinivas2010gpucb} chooses the next configuration to
+evaluate by the upper confidence bound of a Gaussian process, with a
+cumulative regret that grows sublinearly with the number of
+evaluations. This suits problems in which each evaluation is
+expensive, such as one MLE iteration, and is the basis of the online
+selection of \citeonline{nesi2022ipdps}. SafeOpt
+\cite{sui2015safeopt} extends this approach to problems in which every
+evaluated configuration must satisfy a safety threshold: starting from
+configurations known to be safe, it only evaluates configurations that
+are safe with high probability. This matches the energy objective of
+this work, in which the configurations tried along the execution
+should respect the time constraint $T \leq (1+\varepsilon)\,T^{*}$. To
+evaluate energy without running every configuration on real hardware,
+\citeonline{marcondes2026sscad} apply a per-task CPU and GPU energy
+model, built from hardware measurements, to StarPU-SimGrid traces
+\cite{stanisic2015simgrid}, and predict the energy of a Cholesky
+factorization with maximum errors of 6% on CPUs and 28% on GPUs. This
+method allows exploring the two-dimensional space with energy in
+simulation before measuring the most promising configurations on real
+nodes.
 
-#+BEGIN_COMMENT
-GP-UCB (Srinivas), BOAT (Dalibard), piBO (Hvarfner); Ahmed MLForSys'25
-(BO multiobjetivo sobre número de nós, offline, job inteiro); Álvarez
-FGCS'27 (tuning online dentro do nó, cita o IPDPS'22); Dieguez'24 (busca
-conjunta ou separada).
-#+END_COMMENT
+Table \ref{tab.related} summarizes the positioning of this work. The
+works of the first group select the resources of each phase, but
+offline or in one dimension, and without energy. The works of the
+second group include energy online, but outside task-based runtimes
+and without selecting the nodes of each phase. To the best of our
+knowledge, no previous work selects online, during a single execution,
+the number of nodes of each phase of a multi-phase task-based
+application with energy consumption as part of the objective, which is
+the goal of this work.
 
-*** Reinforcement learning for HPC
+#+BEGIN_EXPORT latex
+\begin{table}[!tb]
+\centering
+\caption{Positioning of this work. $\bullet$: yes; $\circ$: partially;
+--: no.}\label{tab.related}
+\small
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+\textbf{Work} & \textbf{Online} & \textbf{\shortstack{Nodes\\per phase}} & \textbf{\shortstack{Multi-\\node}} & \textbf{Energy} & \textbf{\shortstack{Task-\\based}} \\
+\midrule
+\citeonline{nesi2021icpp} & -- & $\bullet$ & $\bullet$ & -- & $\bullet$ \\
+\citeonline{nesi2023fgcs} & -- & $\bullet$ & $\bullet$ & -- & $\bullet$ \\
+\citeonline{nesi2022ipdps} & $\bullet$ & $\circ$\textsuperscript{a} & $\bullet$ & -- & $\bullet$ \\
+\citeonline{nesi2023thesis}, Sec.~7.4 & -- & $\bullet$ & $\bullet$ & $\circ$\textsuperscript{b} & $\bullet$ \\
+\citeonline{kim2012ccgrid} & $\bullet$ & $\bullet$\textsuperscript{c} & $\bullet$ & -- & -- \\
+\citeonline{wang2023fgcs} & $\bullet$ & $\bullet$\textsuperscript{c} & $\bullet$ & -- & -- \\
+\citeonline{lorenzon2019aurora} & $\bullet$ & $\circ$\textsuperscript{d} & -- & $\bullet$ & -- \\
+\citeonline{li2013tpds} & $\bullet$ & $\circ$\textsuperscript{d} & $\bullet$ & $\bullet$ & -- \\
+\citeonline{cascajo2023hpcmall} & $\bullet$ & -- & $\circ$ & $\bullet$ & -- \\
+\midrule
+This work & $\bullet$ & $\bullet$ & $\bullet$ & $\bullet$ & $\bullet$ \\
+\bottomrule
+\end{tabular}
 
-#+BEGIN_COMMENT
-Pochelu'26 (survey); Korndörfer'25 (RL × conhecimento especialista);
-Kaiser'23 (RL só compete com BO quando pré-treinado em simulação);
-Legrand, Trystram, Zrigui IPDPS'19 (crítica ao aprendizado online).
-Mensagem: o problema é um bandit estruturado com poucas dezenas de
-avaliações; RL entra como baseline, não como método principal.
-#+END_COMMENT
-
-*** Energy in task-based runtimes
-
-#+BEGIN_COMMENT
-d'Aviau de Piolant HCW'25 (power capping de GPU em Cholesky sobre
-StarPU); Marcondes, Raddatz, Schnorr SSCAD'26 (energia sobre
-StarPU-SimGrid); tese do Nesi, cap. 7 (Pareto tempo × energia); nós
-ociosos e proporcionalidade energética.
-#+END_COMMENT
-
-*** Positioning
-
-#+BEGIN_COMMENT
-Tabela: trabalho × {online, per phase, multi-node, energy, task-based
-runtime}. Fechar com o parágrafo da lacuna: ninguém combina escolha
-online, por fase e com energia numa aplicação task-based multinó.
-#+END_COMMENT
+\vspace{2pt}
+\begin{minipage}{\textwidth}\footnotesize
+\textsuperscript{a} Only the factorization; the generation uses all nodes.
+\textsuperscript{b} Offline measurements, not part of the selection.\\
+\textsuperscript{c} Processes per concurrent component.
+\textsuperscript{d} Threads per phase or parallel region, within the node.
+\end{minipage}
+\end{table}
+#+END_EXPORT
 
 ** Methodology
 <<cap.methodology>>
@@ -277,8 +359,7 @@ the per-phase execution of \citeonline{nesi2021icpp} to the current
 software stack, then use it to study the online selection of the
 number of nodes of both phases, and finally add energy to the
 objective. This section describes the application and its
-runtime (Section [[sec.exageostat]]), our previous work on which this
-plan builds (Section [[sec.previous]]), and the current state of the
+runtime (Section [[sec.exageostat]]) and the current state of the
 software (Section [[sec.stack]]). Section [[sec.schedule]] presents the
 schedule.
 
@@ -325,46 +406,8 @@ nodes online, along the MLE iterations, with a Gaussian process guided
 by a lower bound computed by a linear program. This work keeps this execution model and adds the number of
 generation nodes as a second dimension of the selection.
 
-*** Previous work
-<<sec.previous>>
-
-#+BEGIN_COMMENT
-~0,5 página, um parágrafo por artigo, dizendo o que cada um dá a este
-plano (não é lista de publicações):
-- SSCAD'26 (Tregnago e Schnorr), "Análise do Impacto de Runtimes
-  Task-Based no Desempenho de Algoritmos de Álgebra Linear Densa": StarPU
-  × PaRSEC no Chameleon (Cholesky e LU, com GPU; estendeu o DTD do PaRSEC
-  e os codelets do Chameleon). O StarPU foi superior ou equivalente na
-  maior parte dos casos → justifica a pilha StarPU no O1, embora o
-  handout do ExaGeoStatCPP aponte o PaRSEC. Também é a origem do flake
-  do Chameleon com StarPU ou PaRSEC.
-- UCC'26 (Tregnago, Colle e Schnorr), "On the Viability of using
-  Simulation to Assess Cloud Offload for HPC Workloads": LU com
-  StarPU-MPI simulada com SimGrid + StarPU, perfmodels calibrados em
-  máquinas reais, distribuições 2DBC, 1D-1D e 1D-1D-C em plataformas
-  heterogêneas → é a metodologia de simulação que este plano reusa para
-  explorar o espaço 2D × energia sem rodar tudo de verdade. A 1D-1D-C é
-  da mesma família das distribuições do Nesi.
-- Trabalho em andamento (CCGRID 2027, com o grupo): só no texto, SEM
-  entrada no refs.bib (título indefinido, double-blind, escopo ainda
-  mudando). 2 ou 3 frases. Não afirmar que o ExaGeoStat está no artigo:
-  a calibração dele é da colaboração, não necessariamente do paper.
-  Rascunho:
-  "We are currently extending this methodology in a collaboration within
-  our research group, to be submitted to IEEE/ACM CCGrid 2027, which
-  studies data distributions aware of the wide-area link between
-  on-premise and cloud nodes. As part of this collaboration, StarPU
-  performance models of ExaGeoStat were calibrated for PCAD and
-  Grid'5000 machines; they are the starting point for simulating
-  ExaGeoStat in this plan."
-  Depois de 01/12: trocar "to be submitted to" por "submitted to".
-BibTeX: exportar do SOL (SSCAD) e do IEEE/ACM (UCC); se os anais do UCC
-ainda não saíram, marcar "to appear".
-#+END_COMMENT
-
 *** Software stack and current state
 <<sec.stack>>
-
 
 The implementation of \citeonline{nesi2022ipdps} is a patch on the
 legacy version of ExaGeoStat, written in C, on top of versions of
@@ -572,6 +615,107 @@ Tangle this file with C-c C-v t
   month     = may,
   pages     = {357--367},
   doi       = {10.1109/IPDPS53621.2022.00042},
+}
+
+@article{nesi2023fgcs,
+  title     = {Asynchronous multi-phase task-based applications: Employing different nodes to design better distributions},
+  author    = {Nesi, Lucas Leandro and Legrand, Arnaud and Schnorr, Lucas Mello},
+  journal   = {Future Generation Computer Systems},
+  publisher = {Elsevier},
+  volume    = {147},
+  pages     = {119--135},
+  year      = {2023},
+  month     = oct,
+  issn      = {0167-739X},
+  doi       = {10.1016/j.future.2023.05.005},
+}
+
+@inproceedings{kim2012ccgrid,
+  title     = {Malleable Model Coupling with Prediction},
+  author    = {Kim, Daihee and Larson, J. Walter and Chiu, Kenneth},
+  booktitle = {12th IEEE/ACM International Symposium on Cluster, Cloud and Grid Computing (CCGrid)},
+  publisher = {IEEE},
+  year      = {2012},
+  month     = may,
+  pages     = {360--367},
+  doi       = {10.1109/CCGrid.2012.20},
+}
+
+@article{wang2023fgcs,
+  title     = {Adaptive elasticity policies for staging-based in situ visualization},
+  author    = {Wang, Zhe and Dorier, Matthieu and Subedi, Pradeep and Davis, Philip E. and Parashar, Manish},
+  journal   = {Future Generation Computer Systems},
+  publisher = {Elsevier},
+  volume    = {142},
+  pages     = {75--89},
+  year      = {2023},
+  month     = may,
+  issn      = {0167-739X},
+  doi       = {10.1016/j.future.2022.12.010},
+}
+
+@article{lorenzon2019aurora,
+  title     = {Aurora: Seamless Optimization of {OpenMP} Applications},
+  author    = {Lorenzon, Arthur Francisco and de Oliveira, Charles Cardoso and Souza, Jeckson Dellagostin and Beck, Antonio Carlos Schneider},
+  journal   = {IEEE Transactions on Parallel and Distributed Systems},
+  publisher = {IEEE},
+  volume    = {30},
+  number    = {5},
+  pages     = {1007--1021},
+  year      = {2019},
+  month     = may,
+  doi       = {10.1109/TPDS.2018.2872992},
+}
+
+@article{li2013tpds,
+  title     = {Strategies for Energy-Efficient Resource Management of Hybrid Programming Models},
+  author    = {Li, Dong and de Supinski, Bronis R. and Schulz, Martin and Nikolopoulos, Dimitrios S. and Cameron, Kirk W.},
+  journal   = {IEEE Transactions on Parallel and Distributed Systems},
+  publisher = {IEEE},
+  volume    = {24},
+  number    = {1},
+  pages     = {144--157},
+  year      = {2013},
+  month     = jan,
+  doi       = {10.1109/TPDS.2012.95},
+}
+
+@inproceedings{cascajo2023hpcmall,
+  title     = {Malleable Techniques and Resource Scheduling to Improve Energy Efficiency in Parallel Applications},
+  author    = {Cascajo, Alberto and Arbe, Alvaro and Garcia-Blas, Javier and Carretero, Jesus and Singh, David E.},
+  booktitle = {High Performance Computing: ISC High Performance 2023 International Workshops},
+  editor    = {Bienz, Amanda and Weiland, Mich{\`e}le and Baboulin, Marc and Kruse, Carola},
+  series    = {Lecture Notes in Computer Science},
+  publisher = {Springer},
+  address   = {Cham},
+  pages     = {16--27},
+  year      = {2023},
+  doi       = {10.1007/978-3-031-40843-4_2},
+}
+
+@inproceedings{sui2015safeopt,
+  title     = {Safe Exploration for Optimization with {Gaussian} Processes},
+  author    = {Sui, Yanan and Gotovos, Alkis and Burdick, Joel and Krause, Andreas},
+  booktitle = {Proceedings of the 32nd International Conference on Machine Learning (ICML)},
+  editor    = {Bach, Francis and Blei, David},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {37},
+  pages     = {997--1005},
+  publisher = {PMLR},
+  address   = {Lille, France},
+  year      = {2015},
+  url       = {https://proceedings.mlr.press/v37/sui15.html},
+}
+
+@inproceedings{marcondes2026sscad,
+  title     = {Assessing Operational Carbon Footprint for Task-based Applications using Simulation},
+  author    = {Marcondes, Otho Jos{\'e} Sirtoli and Raddatz, Rayan and Schnorr, Lucas Mello},
+  booktitle = {Anais do XXVII Simp{\'o}sio em Sistemas Computacionais de Alto Desempenho (SSCAD)},
+  publisher = {Sociedade Brasileira de Computa{\c{c}}{\~a}o},
+  pages     = {343--356},
+  year      = {2026},
+  month     = nov,
+  doi       = {10.5753/sscad.2026.34952},
 }
 #+end_src
 * Emacs setup                                                      :noexport:
